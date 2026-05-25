@@ -1,4 +1,7 @@
 <Solution>
+  <Folder Name="/Solution Items/">
+    <File Path="README.md" />
+  </Folder>
   <Project Path="Application/Eshop.Application.csproj" />
   <Project Path="Eshop.API/Eshop.API.csproj" />
   <Project Path="Eshop.Core/Eshop.Core.csproj" />
