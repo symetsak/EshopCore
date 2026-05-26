@@ -1,4 +1,6 @@
-﻿namespace Eshop.Core.Entities
+﻿using System.Text.Json.Serialization;
+
+namespace Eshop.Core.Entities
 {
     public class Category
     {
@@ -6,6 +8,7 @@
         public string Name { get; set; } = string.Empty;
         public int DisplayOrder { get; set; }
 
+        [JsonIgnore]
         // Σχέση: Μια κατηγορία έχει πολλά προϊόντα
         public ICollection<Product> Products { get; set; } = new List<Product>();
     }

@@ -1,13 +1,17 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using Eshop.Core.Entities;
+using Eshop.Core.Interfaces;
 
 namespace Eshop.Infrastructure.Data
 {
     public class ApplicationDbContext : DbContext
     {
+        private readonly ITenantProvider _tenantProvider;
+
         // Αυτός ο constructor επιτρέπει να περνάμε δυναμικά το Connection String
-        public ApplicationDbContext(DbContextOptions<ApplicationDbContext> options) : base(options)
+        public ApplicationDbContext(DbContextOptions<ApplicationDbContext> options, ITenantProvider tenantProvider) : base(options)
         {
+            _tenantProvider = tenantProvider;
         }
 
         public DbSet<Product> Products { get; set; }
@@ -15,6 +19,25 @@ namespace Eshop.Infrastructure.Data
         public DbSet<User> Users { get; set; }
         public DbSet<Order> Orders { get; set; }
         public DbSet<OrderItem> OrderItems { get; set; }
+
+        // Αυτή η μέθοδος τρέχει αυτόματα πριν το EF συνδεθεί στη βάση
+        protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
+        {
+            // Αν το optionsBuilder δεν έχει ρυθμιστεί ήδη (π.χ. από το DesignTime Factory)
+            if (!optionsBuilder.IsConfigured)
+            {
+                var connString = _tenantProvider.ConnectionString;
+
+                if (string.IsNullOrEmpty(connString))
+                {
+                    throw new InvalidOperationException("Δεν βρέθηκε έγκυρο Connection String για τον συγκεκριμένο πελάτη.");
+                }
+
+                optionsBuilder.UseNpgsql(connString);
+            }
+
+            base.OnConfiguring(optionsBuilder);
+        }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {

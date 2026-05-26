@@ -1,4 +1,6 @@
-﻿namespace Eshop.Core.Entities
+﻿using System.Text.Json.Serialization;
+
+namespace Eshop.Core.Entities
 {
     public class Product
     {
@@ -10,6 +12,8 @@
 
         // Foreign Key για την Κατηγορία
         public int CategoryId { get; set; }
+
+        [JsonIgnore]
         public Category? Category { get; set; }
     }
 }
