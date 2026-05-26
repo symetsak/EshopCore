@@ -43,6 +43,32 @@ namespace Eshop.Infrastructure.Data
         {
             base.OnModelCreating(modelBuilder);
 
+            // 1. SEEDING ΓΙΑ ΚΑΤΗΓΟΡΙΕΣ
+            modelBuilder.Entity<Category>().HasData(
+                new Category
+                {
+                    Id = 1,
+                    Name = "Λοιπά",
+                    DisplayOrder = 1
+                }
+            );
+
+            // 2. SEEDING ΓΙΑ ΤΟΝ ADMIN USER
+            modelBuilder.Entity<User>().HasData(
+                new User
+                {
+                    Id = 1,
+                    Username = "admin", 
+                    Email = "admin@eshop.com",
+                    PasswordHash = "AQAAAAIAAYagAAAAE...", // Αντιπροσωπεύει το κρυπτογραφημένο Admin123!
+                    FirstName = "System",
+                    LastName = "Admin",
+                    Role = "Administrator", 
+                    IsFirstLogin = true, // Υποχρεώνει τον χρήστη για αλλαγή στο 1ο login
+                    CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc)
+                }
+            );
+
             // 1. Σχέση Category -> Products (1-to-Many)
             modelBuilder.Entity<Product>()
                 .HasOne(p => p.Category)

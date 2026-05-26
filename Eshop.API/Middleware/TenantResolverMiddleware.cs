@@ -15,6 +15,13 @@ namespace Eshop.API.Middleware
 
         public async Task InvokeAsync(HttpContext context, ITenantProvider tenantProvider, MasterDbContext masterDbContext)
         {
+            // ΑΝ το request πηγαίνει στο endpoint των Tenants, μην ζητάς Tenant ID, προχώρα κανονικά!
+            if (context.Request.Path.StartsWithSegments("/api/Tenants"))
+            {
+                await _next(context);
+                return;
+            }
+
             // 1. Προσπαθούμε να διαβάσουμε το Tenant ID από το HTTP Header
             if (context.Request.Headers.TryGetValue("X-Tenant-Id", out var tenantId))
             {
