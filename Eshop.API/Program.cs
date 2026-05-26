@@ -23,6 +23,9 @@ builder.Services.AddScoped<ITenantDatabaseService, TenantDatabaseService>();
 // Ο TenantProvider πρέπει να είναι Scoped (ένας ανά HTTP Request)
 builder.Services.AddScoped<ITenantProvider, TenantProvider>();
 
+// Λέμε στον AutoMapper να ψάξει να βρει όλα τα Profiles στο Application layer
+builder.Services.AddAutoMapper(typeof(Eshop.Application.DTOs.MappingProfile));
+
 // Δηλώνουμε το ApplicationDbContext
 builder.Services.AddDbContext<ApplicationDbContext>();
 
