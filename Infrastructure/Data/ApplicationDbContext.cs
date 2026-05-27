@@ -60,7 +60,7 @@ namespace Eshop.Infrastructure.Data
                     Id = 1,
                     Username = "admin", 
                     Email = "admin@eshop.com",
-                    PasswordHash = "AQAAAAIAAYagAAAAE...", // Αντιπροσωπεύει το κρυπτογραφημένο Admin123!
+                    PasswordHash = "$2a$11$fX1Z7.h2bXQenQ/K3d0fbeU3Zp7Z7WkO8/j7YAnF.gXjbe5Q2WdmG", // Αντιπροσωπεύει το κρυπτογραφημένο Admin123!
                     FirstName = "System",
                     LastName = "Admin",
                     Role = "Administrator", 
