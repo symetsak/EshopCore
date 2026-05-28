@@ -19,6 +19,7 @@ namespace Eshop.Infrastructure.Data
         public DbSet<User> Users { get; set; }
         public DbSet<Order> Orders { get; set; }
         public DbSet<OrderItem> OrderItems { get; set; }
+        public DbSet<RefreshToken> RefreshTokens { get; set; }
 
         // Αυτή η μέθοδος τρέχει αυτόματα πριν το EF συνδεθεί στη βάση
         protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
@@ -95,6 +96,13 @@ namespace Eshop.Infrastructure.Data
                 .WithMany() // Δεν χρειάζεται λίστα από OrderItems μέσα στο Product κλάση
                 .HasForeignKey(oi => oi.ProductId)
                 .OnDelete(DeleteBehavior.Restrict);
+
+            // Σχέση User -> RefreshTokens (1-to-Many): Ένας χρήστης μπορεί να έχει πολλά Refresh Tokens από διαφορετικές συσκευές)
+            modelBuilder.Entity<RefreshToken>()
+                .HasOne(rt => rt.User)
+                .WithMany() // Αν θες, μπορείς να αφήσεις άδεια τη λίστα στο User
+                .HasForeignKey(rt => rt.UserId)
+                .OnDelete(DeleteBehavior.Cascade); // Αν διαγραφεί ο χρήστης, σβήνονται αυτόματα και τα tokens του
         }
     }
 }
