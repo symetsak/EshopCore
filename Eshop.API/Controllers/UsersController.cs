@@ -57,45 +57,13 @@ namespace Eshop.API.Controllers
             Request.Headers.TryGetValue("X-Tenant-Id", out var tenantId);
 
             // 4. Δημιουργία των Claims για το JWT
-            var claims = new[]
-            {
-                new Claim(ClaimTypes.Name, user.Username),
-                new Claim(ClaimTypes.Role, user.Role),
-                new Claim("TenantId", tenantId.ToString()),
-                new Claim("UserId", user.Id.ToString())
-            };
-
             // 5. Παραγωγή του JWT Token
-            var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_configuration["Jwt:Key"] ?? "$uper$ecureL0ngKeyCh@ngeMe!WhyS0L0ngMu$tBeThi#Key"));
-            var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
-
-            var token = new JwtSecurityToken(
-                issuer: _configuration["Jwt:Issuer"],
-                audience: _configuration["Jwt:Audience"],
-                claims: claims,
-                expires: DateTime.UtcNow.AddMinutes(20),
-                signingCredentials: creds
-            );
-
-            var accessTokenString = new JwtSecurityTokenHandler().WriteToken(token);
+            var accessTokenString = GenerateAccessToken(user, tenantId.ToString());
 
             // 6. ΔΗΜΙΟΥΡΓΙΑ REFRESH TOKEN (Διάρκεια: 72 Ώρες)
             // Παράγουμε ένα μοναδικό, τυχαίο string (GUID σε συνδυασμό με Base64 για έξτρα ασφάλεια)
-            var randomNumber = new byte[32];
-            using (var rng = System.Security.Cryptography.RandomNumberGenerator.Create())
-            {
-                rng.GetBytes(randomNumber);
-            }
-            string refreshTokenString = Convert.ToBase64String(randomNumber);
-
             // Δημιουργούμε το Entity για να το σώσουμε στη βάση του Tenant
-            var refreshTokenEntity = new Eshop.Core.Entities.RefreshToken
-            {
-                Token = refreshTokenString,
-                UserId = user.Id,
-                ExpiresAt = DateTime.UtcNow.AddHours(72), 
-                CreatedAt = DateTime.UtcNow
-            };
+            var refreshTokenEntity = GenerateRefreshTokenEntity(user.Id);
 
             // Αποθήκευση στη βάση δεδομένων του Tenant
             _context.RefreshTokens.Add(refreshTokenEntity);
@@ -105,11 +73,11 @@ namespace Eshop.API.Controllers
             var response = new LoginResponseDto
             {
                 Username = user.Username,
-                Email = user.Email, // Διόρθωσα το "email" σε "Email" αν η ιδιότητα στο DTO ξεκινάει με κεφαλαίο
+                Email = user.Email, 
                 Role = user.Role,
                 IsFirstLogin = user.IsFirstLogin,
                 Token = accessTokenString,
-                RefreshToken=refreshTokenString
+                RefreshToken = refreshTokenEntity.Token
             };
 
             return Ok(response);
@@ -144,47 +112,15 @@ namespace Eshop.API.Controllers
             var user = storedToken.User;
 
             // 4. Δημιουργία Claims για το ΝΕΟ Access Token (20 λεπτά)
-            var claims = new[]
-            {
-                new Claim(ClaimTypes.Name, user.Username),
-                new Claim(ClaimTypes.Role, user.Role),
-                new Claim("TenantId", tenantId.ToString()),
-                new Claim("UserId", user.Id.ToString())
-            };
-
-            var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_configuration["Jwt:Key"] ?? "SuperSecureLongKeyChangeMe1234567890!"));
-            var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
-
-            var newAccessToken = new JwtSecurityToken(
-                issuer: _configuration["Jwt:Issuer"],
-                audience: _configuration["Jwt:Audience"],
-                claims: claims,
-                expires: DateTime.UtcNow.AddMinutes(20), // Νέο 20λεπτο
-                signingCredentials: creds
-            );
-
-            var newAccessTokenString = new JwtSecurityTokenHandler().WriteToken(newAccessToken);
+            var newAccessTokenString = GenerateAccessToken(user, tenantId.ToString());
 
             // 5. REFRESH TOKEN ROTATION: Ακύρωση του παλιού και παραγωγή ολοκαίνουργιου Refresh Token
             // Αφαίρεση του χρησιμοποιημένου token από τη βάση
             _context.RefreshTokens.Remove(storedToken);
 
             // Παραγωγή νέου τυχαίου κρυπτογραφικού string
-            var randomNumber = new byte[32];
-            using (var rng = System.Security.Cryptography.RandomNumberGenerator.Create())
-            {
-                rng.GetBytes(randomNumber);
-            }
-            string newRefreshTokenString = Convert.ToBase64String(randomNumber);
-
             // Αποθήκευση του νέου Refresh Token στη βάση του Tenant για άλλες 72 ώρες
-            var newRefreshTokenEntity = new Eshop.Core.Entities.RefreshToken
-            {
-                Token = newRefreshTokenString,
-                UserId = user.Id,
-                ExpiresAt = DateTime.UtcNow.AddHours(72),
-                CreatedAt = DateTime.UtcNow
-            };
+            var newRefreshTokenEntity = GenerateRefreshTokenEntity(user.Id);
 
             _context.RefreshTokens.Add(newRefreshTokenEntity);
             await _context.SaveChangesAsync();
@@ -197,10 +133,52 @@ namespace Eshop.API.Controllers
                 Role = user.Role,
                 IsFirstLogin = user.IsFirstLogin,
                 Token = newAccessTokenString,      // Το νέο Access Token
-                RefreshToken = newRefreshTokenString // Το νέο Refresh Token
+                RefreshToken = newRefreshTokenEntity.Token // Το νέο Refresh Token
             };
 
             return Ok(response);
+        }
+
+        private string GenerateAccessToken(Eshop.Core.Entities.User user, string tenantId)
+        {
+            var claims = new[]
+            {
+                new Claim(ClaimTypes.Name, user.Username),
+                new Claim(ClaimTypes.Role, user.Role),
+                new Claim("TenantId", tenantId),
+                new Claim("UserId", user.Id.ToString())
+            };
+
+            var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_configuration["Jwt:Key"] ?? "$uper$ecureL0ngKeyCh@ngeMe!WhyS0L0ngMu$tBeThi#Key"));
+            var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
+
+            var token = new JwtSecurityToken(
+                issuer: _configuration["Jwt:Issuer"],
+                audience: _configuration["Jwt:Audience"],
+                claims: claims,
+                expires: DateTime.UtcNow.AddMinutes(20),
+                signingCredentials: creds
+            );
+
+            return new JwtSecurityTokenHandler().WriteToken(token);
+        }
+
+        private Eshop.Core.Entities.RefreshToken GenerateRefreshTokenEntity(int userId)
+        {
+            var randomNumber = new byte[32];
+            using (var rng = System.Security.Cryptography.RandomNumberGenerator.Create())
+            {
+                rng.GetBytes(randomNumber);
+            }
+            string refreshTokenString = Convert.ToBase64String(randomNumber);
+
+            return new Eshop.Core.Entities.RefreshToken
+            {
+                Token = refreshTokenString,
+                UserId = userId,
+                ExpiresAt = DateTime.UtcNow.AddHours(72),
+                CreatedAt = DateTime.UtcNow
+            };
         }
     }
 }
