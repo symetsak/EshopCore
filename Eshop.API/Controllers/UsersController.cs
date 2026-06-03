@@ -5,7 +5,8 @@ using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
 using Eshop.Infrastructure.Data;
-using Eshop.Application.DTOs;
+using Eshop.Core.DTOs;
+using Microsoft.AspNetCore.Authorization;
 
 namespace Eshop.API.Controllers
 {
@@ -83,6 +84,7 @@ namespace Eshop.API.Controllers
             return Ok(response);
         }
 
+        [Authorize]
         [HttpPost("refresh")]
         public async Task<IActionResult> Refresh([FromBody] RefreshTokenRequestDto request)
         {
@@ -148,13 +150,15 @@ namespace Eshop.API.Controllers
                 new Claim("TenantId", tenantId),
                 new Claim("UserId", user.Id.ToString())
             };
-
-            var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_configuration["Jwt:Key"] ?? "$uper$ecureL0ngKeyCh@ngeMe!WhyS0L0ngMu$tBeThi#Key"));
+    
+            // Διορθώνουμε το path για να διαβάζει το Secret από το JwtSettings
+            var jwtSecret = _configuration["JwtSettings:Secret"] ?? "$uper$ecureL0ngKeyCh@ngeMe!WhyS0L0ngMu$tBeThi$Key";
+            var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSecret));
             var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
 
             var token = new JwtSecurityToken(
-                issuer: _configuration["Jwt:Issuer"],
-                audience: _configuration["Jwt:Audience"],
+                issuer: _configuration["JwtSettings:Issuer"],     // Διαβάζει το EshopAPI
+                audience: _configuration["JwtSettings:Audience"], // Διαβάζει το EshopClients
                 claims: claims,
                 expires: DateTime.UtcNow.AddMinutes(20),
                 signingCredentials: creds
