@@ -5,7 +5,7 @@ using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
 using Eshop.Infrastructure.Data;
-using Eshop.Application.DTOs;
+using Eshop.Core.DTOs;
 using Microsoft.AspNetCore.Authorization;
 
 namespace Eshop.API.Controllers

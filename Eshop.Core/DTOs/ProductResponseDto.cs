@@ -1,4 +1,4 @@
-﻿namespace Eshop.Application.DTOs
+﻿namespace Eshop.Core.DTOs
 {
     public class ProductResponseDto
     {

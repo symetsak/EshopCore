@@ -1,53 +1,67 @@
-﻿using AutoMapper;
-using Eshop.Application.DTOs;
-using Eshop.Core.Entities;
-using Eshop.Infrastructure.Data;
+﻿using Eshop.Core.DTOs;
+using Eshop.Core.Interfaces;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 
 namespace Eshop.API.Controllers
 {
-    [Route("api/[controller]")]
+    [Authorize] 
     [ApiController]
+    [Route("api/[controller]")]
     public class ProductsController : ControllerBase
     {
-        private readonly ApplicationDbContext _context;
-        private readonly IMapper _mapper;
+        private readonly IProductService _productService;
 
-        // Κάνουμε inject το DbContext του πελάτη
-        public ProductsController(ApplicationDbContext context, IMapper mapper)
+        public ProductsController(IProductService productService)
         {
-            _context = context;
-            _mapper = mapper;
+            _productService = productService;
         }
 
-        // 1. GET: api/Products (Φέρνει όλα τα προϊόντα του συγκεκριμένου Tenant)
         [HttpGet]
-        public async Task<ActionResult<IEnumerable<ProductResponseDto>>> GetProducts()
+        public async Task<IActionResult> GetAll()
         {
-            var products = await _context.Products.ToListAsync();
-
-            //Ο AutoMapper μετατρέπει όλη τη λίστα αυτόματα!
-            var response = _mapper.Map<IEnumerable<ProductResponseDto>>(products);
-
+            var products = await _productService.GetAllProductsAsync();
             return Ok(products);
         }
 
-        // 2. POST: api/Products (Αποθηκεύει ένα προϊόν στη βάση του συγκεκριμένου Tenant)
-        [HttpPost]
-        public async Task<ActionResult<ProductResponseDto>> CreateProduct(ProductCreateDto dto)
+        [HttpGet("{id}")]
+        public async Task<IActionResult> GetById(int id)
         {
-            //Μετατροπή του DTO σε Entity με μία γραμμή
-            var product = _mapper.Map<Product>(dto);
+            var product = await _productService.GetProductByIdAsync(id);
+            if (product == null)
+            {
+                return NotFound(new { message = $"Το προϊόν με ID {id} δεν βρέθηκε." });
+            }
+            return Ok(product);
+        }
 
-            // Προσωρινά βάζουμε CategoryId = 1 για το τεστ, ή βεβαιώσου ότι έχεις φτιάξει κατηγορία με ID 1
-            _context.Products.Add(product);
-            await _context.SaveChangesAsync();
+        [HttpPost]
+        public async Task<IActionResult> Create([FromBody] ProductCreateDto dto)
+        {
+            var newProduct = await _productService.CreateProductAsync(dto);
+            return CreatedAtAction(nameof(GetById), new { id = newProduct.Id }, newProduct);
+        }
 
-            //Μετατροπή του Entity πίσω σε Response DTO για την απάντηση
-            var responseDto = _mapper.Map<ProductResponseDto>(product);
+        [HttpPut("{id}")]
+        public async Task<IActionResult> Update(int id, [FromBody] ProductCreateDto dto)
+        {
+            var updatedProduct = await _productService.UpdateProductAsync(id, dto);
+            if (updatedProduct == null)
+            {
+                return NotFound(new { message = $"Το προϊόν με ID {id} δεν βρέθηκε για να ενημερωθεί." });
+            }
+            return Ok(updatedProduct);
+        }
 
-            return CreatedAtAction(nameof(GetProducts), new { id = product.Id }, responseDto);
+        [HttpDelete("{id}")]
+        public async Task<IActionResult> Delete(int id)
+        {
+            var deleted = await _productService.DeleteProductAsync(id);
+            if (!deleted)
+            {
+                return NotFound(new { message = $"Το προϊόν με ID {id} δεν βρέθηκε για να διαγραφεί." });
+            }
+            return Ok(new { message = "Το προϊόν διαγράφηκε επιτυχώς." });
         }
     }
 }
