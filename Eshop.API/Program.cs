@@ -6,6 +6,9 @@ using Eshop.Infrastructure.Repositories;
 using Eshop.Infrastructure.Services;
 using Eshop.Infrastructure.Tenancy;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.IdentityModel.Tokens;
+using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -31,12 +34,63 @@ builder.Services.AddDbContext<ApplicationDbContext>();
 
 // 3. Προσθήκη Controllers και Swagger για τις δοκιμές μας
 builder.Services.AddControllers();
+// --- ΡΥΘΜΙΣΗ JWT AUTHENTICATION ---
+var jwtKey = builder.Configuration["JwtSettings:Secret"];
+var jwtIssuer = builder.Configuration["JwtSettings:Issuer"];
+var jwtAudience = builder.Configuration["JwtSettings:Audience"];
+
+builder.Services.AddAuthentication(options =>
+{
+    options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
+    options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
+})
+.AddJwtBearer(options =>
+{
+    options.TokenValidationParameters = new TokenValidationParameters
+    {
+        ValidateIssuer = true,
+        ValidateAudience = true,
+        ValidateLifetime = true,
+        ValidateIssuerSigningKey = true,
+        ValidIssuer = jwtIssuer,
+        ValidAudience = jwtAudience,
+        IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey!)),
+        ClockSkew = TimeSpan.FromMinutes(5) // 5 λεπτά ανοχή χρόνου
+    };
+});
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c =>
 {
     c.SwaggerDoc("v1", new Microsoft.OpenApi.Models.OpenApiInfo { Title = "MultiTenant Eshop API", Version = "v1" });
 
-    // Προσθήκη του παγκόσμιου φίλτρου για το Header
+    // 1. Ορίζουμε το σύστημα ασφαλείας (JWT Bearer) για το Swagger
+    c.AddSecurityDefinition("Bearer", new Microsoft.OpenApi.Models.OpenApiSecurityScheme
+    {
+        Name = "Authorization",
+        Type = Microsoft.OpenApi.Models.SecuritySchemeType.ApiKey,
+        Scheme = "Bearer",
+        BearerFormat = "JWT",
+        In = Microsoft.OpenApi.Models.ParameterLocation.Header,
+        Description = "Κάνε επικόλληση ΜΟΝΟ το Token σου στο πεδίο Value."
+    });
+
+    // 2. Λέμε στο Swagger να εφαρμόσει αυτό το σύστημα παγκόσμια
+    c.AddSecurityRequirement(new Microsoft.OpenApi.Models.OpenApiSecurityRequirement
+    {
+        {
+            new Microsoft.OpenApi.Models.OpenApiSecurityScheme
+            {
+                Reference = new Microsoft.OpenApi.Models.OpenApiReference
+                {
+                    Type = Microsoft.OpenApi.Models.ReferenceType.SecurityScheme,
+                    Id = "Bearer"
+                }
+            },
+            Array.Empty<string>()
+        }
+    });
+
+    // Προσθήκη του παγκόσμιου φίλτρου για το Header (Το δικό σου!)
     c.OperationFilter<AddTenantHeaderOperationFilter>();
 });
 
@@ -50,7 +104,9 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
+app.UseRouting();
 app.UseMiddleware<TenantResolverMiddleware>();
+app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
 app.Run();
