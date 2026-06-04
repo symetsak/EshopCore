@@ -33,5 +33,10 @@ namespace Eshop.Infrastructure.Repositories
         {
             await _context.SaveChangesAsync();
         }
+
+        public async Task<Customer?> GetByRefreshTokenAsync(string refreshToken)
+        {
+            return await _context.Customers.FirstOrDefaultAsync(c => c.RefreshToken == refreshToken);
+        }
     }
 }

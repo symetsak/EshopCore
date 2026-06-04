@@ -43,5 +43,18 @@ namespace Eshop.API.Controllers
 
             return Ok(response);
         }
+
+        // POST: api/customers/refresh
+        [HttpPost("refresh")]
+        public async Task<IActionResult> Refresh([FromBody] CustomerRefreshRequestDto dto)
+        {
+            var response = await _customerService.RefreshTokenAsync(dto);
+            if (response == null)
+            {
+                return BadRequest(new { message = "Μη έγκυρο ή ληγμένο Refresh Token." });
+            }
+
+            return Ok(response);
+        }
     }
 }

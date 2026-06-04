@@ -6,6 +6,7 @@ namespace Eshop.Core.Interfaces
     {
         Task<Customer?> GetByIdAsync(int id);
         Task<Customer?> GetByEmailAsync(string email);
+        Task<Customer?> GetByRefreshTokenAsync(string refreshToken);
         Task AddAsync(Customer customer);
         Task SaveChangesAsync();
     }

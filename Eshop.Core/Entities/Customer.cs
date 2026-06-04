@@ -30,6 +30,10 @@ namespace Eshop.Core.Entities
 
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
+        public string RefreshToken { get; set; } = string.Empty;
+
+        public DateTime RefreshTokenExpiry { get; set; }
+
         // Σχέση 1-προς-Πολλά: Ένας πελάτης μπορεί να έχει πολλές παραγγελίες
         public ICollection<Order> Orders { get; set; } = new List<Order>();
     }
