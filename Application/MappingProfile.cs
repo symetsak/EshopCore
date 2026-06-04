@@ -13,6 +13,8 @@ namespace Eshop.Application.DTOs
             CreateMap<Eshop.Core.Entities.Product, ProductResponseDto>();
             CreateMap<CategoryCreateDto, Eshop.Core.Entities.Category>();
             CreateMap<Eshop.Core.Entities.Category, CategoryResponseDto>();
+            CreateMap<CustomerRegisterDto, Eshop.Core.Entities.Customer>();
+            CreateMap<Eshop.Core.Entities.Customer, CustomerAuthResponseDto>();
         }
     }
 }

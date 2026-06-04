@@ -14,6 +14,7 @@ namespace Eshop.Infrastructure.Data
             _tenantProvider = tenantProvider;
         }
 
+        public DbSet<Customer> Customers { get; set; }
         public DbSet<Product> Products { get; set; }
         public DbSet<Category> Categories { get; set; }
         public DbSet<User> Users { get; set; }
@@ -77,11 +78,11 @@ namespace Eshop.Infrastructure.Data
                 .HasForeignKey(p => p.CategoryId)
                 .OnDelete(DeleteBehavior.Restrict);
 
-            // 2. Σχέση User -> Orders (1-to-Many)
+            // 2. Σχέση Customer -> Orders (1-to-Many)
             modelBuilder.Entity<Order>()
-                .HasOne(o => o.User)
-                .WithMany(u => u.Orders)
-                .HasForeignKey(o => o.UserId)
+                .HasOne(o => o.Customer)
+                .WithMany(c => c.Orders)
+                .HasForeignKey(o => o.CustomerId)
                 .OnDelete(DeleteBehavior.Restrict);
 
             // 3. Σχέσεις για τον πίνακα-γέφυρα OrderItem
