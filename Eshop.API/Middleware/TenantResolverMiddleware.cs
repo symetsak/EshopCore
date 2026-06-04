@@ -1,6 +1,7 @@
-﻿using Microsoft.AspNetCore.Http;
-using Eshop.Core.Interfaces;
+﻿using Eshop.Core.Interfaces;
 using Eshop.Infrastructure.Data;
+using Microsoft.AspNetCore.Http;
+using Microsoft.EntityFrameworkCore;
 
 namespace Eshop.API.Middleware
 {
@@ -59,6 +60,10 @@ namespace Eshop.API.Middleware
 
                     // Διαγνωστικό μήνυμα στην κονσόλα του Visual Studio
                     Console.WriteLine($"[Multi-Tenancy] Επιτυχής σύνδεση στο Tenant: {tenant.Id}");
+
+                    // Αυτόματο migrate στην βάση κατά την κλήση request (προαιρετικό, αλλά χρήσιμο για ανάπτυξη)
+                    var dbContext = context.RequestServices.GetRequiredService<Eshop.Infrastructure.Data.ApplicationDbContext>();
+                    await dbContext.Database.MigrateAsync();
                 }
                 else
                 {
