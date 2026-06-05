@@ -15,6 +15,8 @@ namespace Eshop.Application.DTOs
             CreateMap<Eshop.Core.Entities.Category, CategoryResponseDto>();
             CreateMap<CustomerRegisterDto, Eshop.Core.Entities.Customer>();
             CreateMap<Eshop.Core.Entities.Customer, CustomerAuthResponseDto>();
+            CreateMap<Order, OrderResponseDto>();
+            CreateMap<OrderItem, OrderItemResponseDto>().ForMember(dest => dest.ProductName, opt => opt.MapFrom(src => src.Product != null ? src.Product.Name : string.Empty)); // κανόνας για να γεμίζει το ProductName απευθείας από το Line Item
         }
     }
 }

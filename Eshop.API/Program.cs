@@ -32,6 +32,8 @@ builder.Services.AddScoped<Eshop.Core.Interfaces.ICategoryRepository, Eshop.Infr
 builder.Services.AddScoped<Eshop.Core.Interfaces.ICategoryService, Eshop.Application.Services.CategoryService>();
 builder.Services.AddScoped<Eshop.Core.Interfaces.ICustomerRepository, Eshop.Infrastructure.Repositories.CustomerRepository>();
 builder.Services.AddScoped<Eshop.Core.Interfaces.ICustomerService, Eshop.Application.Services.CustomerService>();
+builder.Services.AddScoped<Eshop.Core.Interfaces.IOrderRepository, Eshop.Infrastructure.Repositories.OrderRepository>();
+builder.Services.AddScoped<Eshop.Core.Interfaces.IOrderService, Eshop.Application.Services.OrderService>();
 
 
 // Λέμε στον AutoMapper να ψάξει να βρει όλα τα Profiles στο Application layer
