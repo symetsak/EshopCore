@@ -93,5 +93,11 @@ namespace Eshop.Application.Services
             var orders = await _orderRepo.GetByCustomerIdAsync(customerId);
             return _mapper.Map<IEnumerable<OrderResponseDto>>(orders);
         }
+
+        public async Task<IEnumerable<OrderResponseDto>> GetAllTenantOrdersAsync()
+        {
+            var orders = await _orderRepo.GetAllOrdersAsync();
+            return _mapper.Map<IEnumerable<OrderResponseDto>>(orders);
+        }
     }
 }
