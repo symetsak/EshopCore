@@ -7,5 +7,6 @@ namespace Eshop.Core.Interfaces
         Task<OrderResponseDto> CreateOrderAsync(int customerId, OrderCreateDto dto);
         Task<OrderResponseDto?> GetOrderByIdAsync(int id);
         Task<IEnumerable<OrderResponseDto>> GetCustomerOrdersAsync(int customerId);
+        Task<IEnumerable<OrderResponseDto>> GetAllTenantOrdersAsync();
     }
 }

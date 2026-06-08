@@ -28,6 +28,8 @@ builder.Services.AddScoped<ITenantProvider, TenantProvider>();
 
 builder.Services.AddScoped<IProductRepository, ProductRepository>();
 builder.Services.AddScoped<IProductService, ProductService>();
+builder.Services.AddScoped<Eshop.Core.Interfaces.IUserRepository, Eshop.Infrastructure.Repositories.UserRepository>();
+builder.Services.AddScoped<Eshop.Core.Interfaces.IUserService, Eshop.Application.Services.UserService>();
 builder.Services.AddScoped<Eshop.Core.Interfaces.ICategoryRepository, Eshop.Infrastructure.Repositories.CategoryRepository>();
 builder.Services.AddScoped<Eshop.Core.Interfaces.ICategoryService, Eshop.Application.Services.CategoryService>();
 builder.Services.AddScoped<Eshop.Core.Interfaces.ICustomerRepository, Eshop.Infrastructure.Repositories.CustomerRepository>();

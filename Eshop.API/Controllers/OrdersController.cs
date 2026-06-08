@@ -8,7 +8,6 @@ namespace Eshop.API.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
-    [Authorize(Roles = "Customer")] // Μόνο συνδεδεμένοι πελάτες μπορούν να ψωνίσουν!
     public class OrdersController : ControllerBase
     {
         private readonly IOrderService _orderService;
@@ -20,6 +19,7 @@ namespace Eshop.API.Controllers
 
         // POST: api/orders
         [HttpPost]
+        [Authorize(Roles = "Customer")]
         public async Task<IActionResult> CreateOrder([FromBody] OrderCreateDto dto)
         {
             // 1. Τραβάμε το CustomerId μέσα από τα Claims του JWT Token
@@ -44,6 +44,30 @@ namespace Eshop.API.Controllers
             {
                 return NotFound(new { message = ex.Message });
             }
+        }
+
+        // GET: api/orders/my-orders
+        [HttpGet("my-orders")]
+        [Authorize(Roles = "Customer")]
+        public async Task<IActionResult> GetMyOrders()
+        {
+            var customerIdClaim = User.FindFirst("CustomerId")?.Value;
+            if (string.IsNullOrEmpty(customerIdClaim) || !int.TryParse(customerIdClaim, out int customerId))
+            {
+                return Unauthorized(new { message = "Μη έγκυρο αναγνωριστικό πελάτη στο token." });
+            }
+
+            var orders = await _orderService.GetCustomerOrdersAsync(customerId);
+            return Ok(orders);
+        }
+
+        // GET: api/orders/admin/all
+        [HttpGet("admin/all")]
+        [Authorize(Roles = "Administrator")] // Μόνο ο Admin του καταστήματος προς το παρόν
+        public async Task<IActionResult> GetAllTenantOrders()
+        {
+            var orders = await _orderService.GetAllTenantOrdersAsync();
+            return Ok(orders);
         }
     }
 }

@@ -9,6 +9,7 @@ namespace Eshop.Application.DTOs
     {
         public MappingProfile()
         {
+            CreateMap<User, LoginResponseDto>();
             CreateMap<ProductCreateDto, Eshop.Core.Entities.Product>();
             CreateMap<Eshop.Core.Entities.Product, ProductResponseDto>();
             CreateMap<CategoryCreateDto, Eshop.Core.Entities.Category>();
