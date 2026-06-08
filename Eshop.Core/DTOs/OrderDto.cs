@@ -32,4 +32,9 @@
         public int Quantity { get; set; }
         public decimal UnitPrice { get; set; }
     }
+
+    public class OrderStatusUpdateDto
+    {
+        public string Status { get; set; } = string.Empty;
+    }
 }

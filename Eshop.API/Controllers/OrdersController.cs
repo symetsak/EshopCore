@@ -69,5 +69,34 @@ namespace Eshop.API.Controllers
             var orders = await _orderService.GetAllTenantOrdersAsync();
             return Ok(orders);
         }
+
+        // PUT: api/orders/admin/{id}/status
+        [HttpPut("admin/{id}/status")]
+        [Authorize(Roles = "Administrator")] // Μόνο ο Admin μπορεί να αλλάξει status
+        public async Task<IActionResult> UpdateStatus(int id, [FromBody] OrderStatusUpdateDto dto)
+        {
+            if (string.IsNullOrEmpty(dto.Status))
+            {
+                return BadRequest(new { message = "Το πεδίο Status είναι υποχρεωτικό." });
+            }
+
+            var updatedOrder = await _orderService.UpdateOrderStatusAsync(id, dto);
+
+            if (updatedOrder == null)
+            {
+                return NotFound(new { message = $"Η παραγγελία με ID {id} δεν βρέθηκε." });
+            }
+
+            return Ok(updatedOrder);
+        }
+
+        // GET: api/orders/admin/dashboard
+        [HttpGet("admin/dashboard")]
+        [Authorize(Roles = "Administrator")] // Μόνο ο Admin βλέπει τζίρους!
+        public async Task<IActionResult> GetDashboardStats()
+        {
+            var stats = await _orderService.GetAdminDashboardStatsAsync();
+            return Ok(stats);
+        }
     }
 }

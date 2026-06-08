@@ -99,5 +99,90 @@ namespace Eshop.Application.Services
             var orders = await _orderRepo.GetAllOrdersAsync();
             return _mapper.Map<IEnumerable<OrderResponseDto>>(orders);
         }
+
+        public async Task<OrderResponseDto?> UpdateOrderStatusAsync(int orderId, OrderStatusUpdateDto dto)
+        {
+            // 1. Φέρνουμε την παραγγελία μαζί με τα items και τα προϊόντα τους
+            var order = await _orderRepo.GetByIdAsync(orderId);
+            if (order == null) return null;
+
+            string oldStatus = order.Status;
+            string newStatus = dto.Status;
+
+            // 2. Business Logic: Αν η παραγγελία ακυρώνεται, επιστρέφουμε το Stock!
+            if (newStatus.Equals("Cancelled", StringComparison.OrdinalIgnoreCase) &&
+                !oldStatus.Equals("Cancelled", StringComparison.OrdinalIgnoreCase))
+            {
+                foreach (var item in order.OrderItems)
+                {
+                    if (item.Product != null)
+                    {
+                        item.Product.StockQuantity += item.Quantity; // Επιστροφή στοκ
+                        _productRepo.Update(item.Product);
+                    }
+                }
+            }
+
+            // 3. Ενημέρωση του Status
+            order.Status = newStatus;
+
+            await _orderRepo.SaveChangesAsync();
+
+            return _mapper.Map<OrderResponseDto>(order);
+        }
+
+        public async Task<AdminDashboardDto> GetAdminDashboardStatsAsync()
+        {
+            // 1. Φέρνουμε όλες τις παραγγελίες του Tenant
+            var orders = await _orderRepo.GetAllOrdersAsync();
+
+            // Φιλτράρουμε τις ενεργές παραγγελίες (όχι Cancelled)
+            var activeOrders = orders.Where(o => !o.Status.Equals("Cancelled", StringComparison.OrdinalIgnoreCase)).ToList();
+
+            // 2. Υπολογισμός βασικών στατιστικών
+            var totalRevenue = activeOrders.Sum(o => o.TotalAmount);
+            var totalOrdersCount = orders.Count();
+            var activeOrdersCount = activeOrders.Count();
+
+            // Υπολογισμός Μέσης Αξίας Παραγγελίας (Average Order Value)
+            decimal averageOrderValue = activeOrdersCount > 0 ? totalRevenue / activeOrdersCount : 0;
+
+            // 3. Advanced LINQ: Εύρεση των Top 3 Προϊόντων
+            var topProducts = activeOrders
+                .SelectMany(o => o.OrderItems)
+                .GroupBy(item => new { item.ProductId, ProductName = item.Product != null ? item.Product.Name : "Άγνωστο Προϊόν" })
+                .Select(group => new TopProductDto
+                {
+                    ProductId = group.Key.ProductId,
+                    ProductName = group.Key.ProductName,
+                    TotalQuantitySold = group.Sum(item => item.Quantity),
+                    TotalRevenueGenerated = group.Sum(item => item.Quantity * item.UnitPrice)
+                })
+                .OrderByDescending(p => p.TotalQuantitySold)
+                .Take(3)
+                .ToList();
+
+            // 4. ΝΕΟ Advanced LINQ: Τζίρος ανά Κατηγορία Προϊόντος
+            var revenueByCategory = activeOrders
+                .SelectMany(o => o.OrderItems)
+                .GroupBy(item => item.Product != null && item.Product.Category != null ? item.Product.Category.Name : "Χωρίς Κατηγορία")
+                .Select(group => new CategoryRevenueDto
+                {
+                    CategoryName = group.Key,
+                    TotalRevenue = group.Sum(item => item.Quantity * item.UnitPrice)
+                })
+                .OrderByDescending(c => c.TotalRevenue)
+                .ToList();
+
+            // 5. Επιστροφή του τελικού, πλήρους DTO
+            return new AdminDashboardDto
+            {
+                TotalRevenue = totalRevenue,
+                TotalOrdersCount = totalOrdersCount,
+                AverageOrderValue = Math.Round(averageOrderValue, 2), // Στρογγυλοποίηση σε 2 δεκαδικά
+                TopProducts = topProducts,
+                RevenueByCategory = revenueByCategory
+            };
+        }
     }
 }
