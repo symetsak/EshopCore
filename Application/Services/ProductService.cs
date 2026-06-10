@@ -66,5 +66,24 @@ namespace Eshop.Application.Services
             await _productRepo.SaveChangesAsync();
             return true;
         }
+
+        public async Task<PagedResultDto<ProductResponseDto>> GetFilteredProductsAsync(ProductFilterDto filter)
+        {
+            // 1. Καλούμε το Repository για να μας φέρει τη σελιδοποιημένη λίστα με τα Product Entities
+            var pagedProducts = await _productRepo.GetPagedProductsAsync(filter);
+
+            // 2. Μετατρέπουμε (Map) τα Product Entities σε ProductResponseDtos
+            var productDtos = _mapper.Map<IEnumerable<ProductResponseDto>>(pagedProducts.Items);
+
+            // 3. Επιστρέφουμε το νέο PagedResultDto, αλλά αυτή τη φορά με τα DTOs μέσα!
+            return new PagedResultDto<ProductResponseDto>
+            {
+                Items = productDtos,
+                PageNumber = pagedProducts.PageNumber,
+                PageSize = pagedProducts.PageSize,
+                TotalCount = pagedProducts.TotalCount,
+                TotalPages = pagedProducts.TotalPages
+            };
+        }
     }
 }

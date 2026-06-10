@@ -1,4 +1,5 @@
-﻿using Eshop.Core.Entities;
+﻿using Eshop.Core.DTOs;
+using Eshop.Core.Entities;
 
 namespace Eshop.Core.Interfaces
 {
@@ -10,5 +11,6 @@ namespace Eshop.Core.Interfaces
         void Update(Product product);
         void Delete(Product product);
         Task SaveChangesAsync();
+        Task<PagedResultDto<Product>> GetPagedProductsAsync(ProductFilterDto filter);
     }
 }

@@ -9,5 +9,6 @@ namespace Eshop.Core.Interfaces
         Task<ProductResponseDto> CreateProductAsync(ProductCreateDto dto);
         Task<ProductResponseDto?> UpdateProductAsync(int id, ProductCreateDto dto);
         Task<bool> DeleteProductAsync(int id);
+        Task<PagedResultDto<ProductResponseDto>> GetFilteredProductsAsync(ProductFilterDto filter);
     }
 }

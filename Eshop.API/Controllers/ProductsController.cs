@@ -18,10 +18,11 @@ namespace Eshop.API.Controllers
         }
 
         [HttpGet]
-        public async Task<IActionResult> GetAll()
+        public async Task<IActionResult> GetFilteredProducts([FromQuery] ProductFilterDto filter)
         {
-            var products = await _productService.GetAllProductsAsync();
-            return Ok(products);
+            var result = await _productService.GetFilteredProductsAsync(filter);
+
+            return Ok(result);
         }
 
         [HttpGet("{id}")]
