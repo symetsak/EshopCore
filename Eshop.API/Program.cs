@@ -26,8 +26,8 @@ builder.Services.AddScoped<ITenantDatabaseService, TenantDatabaseService>();
 // Ο TenantProvider πρέπει να είναι Scoped (ένας ανά HTTP Request)
 builder.Services.AddScoped<ITenantProvider, TenantProvider>();
 
-builder.Services.AddScoped<IProductRepository, ProductRepository>();
-builder.Services.AddScoped<IProductService, ProductService>();
+builder.Services.AddScoped<Eshop.Core.Interfaces.IProductRepository, Eshop.Infrastructure.Repositories.ProductRepository>();
+builder.Services.AddScoped<Eshop.Core.Interfaces.IProductService, Eshop.Application.Services.ProductService>();
 builder.Services.AddScoped<Eshop.Core.Interfaces.IUserRepository, Eshop.Infrastructure.Repositories.UserRepository>();
 builder.Services.AddScoped<Eshop.Core.Interfaces.IUserService, Eshop.Application.Services.UserService>();
 builder.Services.AddScoped<Eshop.Core.Interfaces.ICategoryRepository, Eshop.Infrastructure.Repositories.CategoryRepository>();
@@ -36,6 +36,7 @@ builder.Services.AddScoped<Eshop.Core.Interfaces.ICustomerRepository, Eshop.Infr
 builder.Services.AddScoped<Eshop.Core.Interfaces.ICustomerService, Eshop.Application.Services.CustomerService>();
 builder.Services.AddScoped<Eshop.Core.Interfaces.IOrderRepository, Eshop.Infrastructure.Repositories.OrderRepository>();
 builder.Services.AddScoped<Eshop.Core.Interfaces.IOrderService, Eshop.Application.Services.OrderService>();
+builder.Services.AddScoped<Eshop.Core.Interfaces.IFileService, Eshop.Infrastructure.Services.FileService>();
 
 
 // Λέμε στον AutoMapper να ψάξει να βρει όλα τα Profiles στο Application layer

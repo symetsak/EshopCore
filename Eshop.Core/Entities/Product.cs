@@ -12,6 +12,7 @@ namespace Eshop.Core.Entities
 
         // Foreign Key για την Κατηγορία
         public int CategoryId { get; set; }
+        public string? ImageUrl { get; set; }
 
         [JsonIgnore]
         public Category? Category { get; set; }

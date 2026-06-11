@@ -2,6 +2,7 @@
 using Eshop.Core.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Http;
 
 namespace Eshop.API.Controllers
 {
@@ -63,6 +64,55 @@ namespace Eshop.API.Controllers
                 return NotFound(new { message = $"Το προϊόν με ID {id} δεν βρέθηκε για να διαγραφεί." });
             }
             return Ok(new { message = "Το προϊόν διαγράφηκε επιτυχώς." });
+        }
+
+        [HttpPost("{id}/image")]
+        public async Task<IActionResult> UploadProductImage(int id, IFormFile file)
+        {
+            if (file == null || file.Length == 0)
+            {
+                return BadRequest(new { message = "Παρακαλώ επιλέξτε μια έγκυρη εικόνα." });
+            }
+
+            var tenantId = HttpContext.Request.Headers["X-Tenant-Id"].ToString();
+            if (string.IsNullOrEmpty(tenantId))
+            {
+                return BadRequest(new { message = "Tenant ID is missing." });
+            }
+
+            try
+            {
+                // Καλούμε το Service και παίρνουμε έτοιμο το ProductResponseDto με το νέο ImageUrl μέσα!
+                var updatedProduct = await _productService.UploadImageAsync(id, file, tenantId);
+                return Ok(updatedProduct);
+            }
+            catch (KeyNotFoundException ex)
+            {
+                return NotFound(new { message = ex.Message });
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
+        }
+
+        // DELETE: api/products/{id}/image
+        [HttpDelete("{id}/image")]
+        public async Task<IActionResult> DeleteProductImage(int id)
+        {
+            try
+            {
+                var updatedProduct = await _productService.DeleteProductImageAsync(id);
+                return Ok(updatedProduct);
+            }
+            catch (KeyNotFoundException ex)
+            {
+                return NotFound(new { message = ex.Message });
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
         }
     }
 }

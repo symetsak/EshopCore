@@ -25,4 +25,8 @@
     <ProjectReference Include="..\Infrastructure\Eshop.Infrastructure.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Folder Include="wwwroot\uploads\adidas-store\products\" />
+  </ItemGroup>
+
 </Project>

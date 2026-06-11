@@ -1,7 +1,8 @@
 ﻿using AutoMapper;
 using Eshop.Core.DTOs;
-using Eshop.Core.Interfaces;
 using Eshop.Core.Entities;
+using Eshop.Core.Interfaces;
+using Microsoft.AspNetCore.Http;
 
 namespace Eshop.Application.Services
 {
@@ -9,11 +10,13 @@ namespace Eshop.Application.Services
     {
         private readonly IProductRepository _productRepo; // <-- Μόνο με το Interface του Core!
         private readonly IMapper _mapper;
+        private readonly IFileService _fileService;
 
-        public ProductService(IProductRepository productRepo, IMapper mapper)
+        public ProductService(IProductRepository productRepo, IMapper mapper, IFileService fileService)
         {
             _productRepo = productRepo;
             _mapper = mapper;
+            _fileService = fileService;
         }
 
         public async Task<IEnumerable<ProductResponseDto>> GetAllProductsAsync()
@@ -84,6 +87,51 @@ namespace Eshop.Application.Services
                 TotalCount = pagedProducts.TotalCount,
                 TotalPages = pagedProducts.TotalPages
             };
+        }
+
+        public async Task<ProductResponseDto> UploadImageAsync(int productId, IFormFile file, string tenantId)
+        {
+            // 1. Φέρνουμε το Entity από το Repository
+            var product = await _productRepo.GetByIdAsync(productId);
+            if (product == null)
+                throw new KeyNotFoundException("Το προϊόν δεν βρέθηκε.");
+
+            // 2. Σώζουμε τη νέα εικόνα μέσω του FileService
+            var imageUrl = await _fileService.SaveProductImageAsync(file, tenantId);
+
+            // 3. Αν υπήρχε παλιά εικόνα, τη σβήνουμε από τον δίσκο για να μην γεμίζει ο server σκουπίδια
+            if (!string.IsNullOrEmpty(product.ImageUrl))
+            {
+                _fileService.DeleteImage(product.ImageUrl);
+            }
+
+            // 4. Ενημερώνουμε το Entity και κάνουμε Save στο Repository
+            product.ImageUrl = imageUrl;
+            _productRepo.Update(product);
+            await _productRepo.SaveChangesAsync();
+
+            // 5. Επιστρέφουμε το ενημερωμένο DTO στο Frontend
+            return _mapper.Map<ProductResponseDto>(product);
+        }
+
+        public async Task<ProductResponseDto> DeleteProductImageAsync(int productId)
+        {
+            var product = await _productRepo.GetByIdAsync(productId);
+            if (product == null)
+                throw new KeyNotFoundException("Το προϊόν δεν βρέθηκε.");
+
+            // Αν υπάρχει εικόνα, τη σβήνουμε από τον σκληρό δίσκο
+            if (!string.IsNullOrEmpty(product.ImageUrl))
+            {
+                _fileService.DeleteImage(product.ImageUrl);
+            }
+
+            // Κάνουμε το πεδίο null στη βάση
+            product.ImageUrl = null;
+            _productRepo.Update(product);
+            await _productRepo.SaveChangesAsync(); 
+
+            return _mapper.Map<ProductResponseDto>(product);
         }
     }
 }
