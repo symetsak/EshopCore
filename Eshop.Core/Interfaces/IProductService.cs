@@ -1,4 +1,5 @@
 ﻿using Eshop.Core.DTOs;
+using Microsoft.AspNetCore.Http;
 
 namespace Eshop.Core.Interfaces
 {
@@ -10,5 +11,7 @@ namespace Eshop.Core.Interfaces
         Task<ProductResponseDto?> UpdateProductAsync(int id, ProductCreateDto dto);
         Task<bool> DeleteProductAsync(int id);
         Task<PagedResultDto<ProductResponseDto>> GetFilteredProductsAsync(ProductFilterDto filter);
+        Task<ProductResponseDto> UploadImageAsync(int productId, IFormFile file, string tenantId);
+        Task<ProductResponseDto> DeleteProductImageAsync(int productId);
     }
 }
