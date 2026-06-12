@@ -37,6 +37,8 @@ builder.Services.AddScoped<Eshop.Core.Interfaces.ICustomerService, Eshop.Applica
 builder.Services.AddScoped<Eshop.Core.Interfaces.IOrderRepository, Eshop.Infrastructure.Repositories.OrderRepository>();
 builder.Services.AddScoped<Eshop.Core.Interfaces.IOrderService, Eshop.Application.Services.OrderService>();
 builder.Services.AddScoped<Eshop.Core.Interfaces.IFileService, Eshop.Infrastructure.Services.FileService>();
+builder.Services.AddScoped<Eshop.Core.Interfaces.ICartRepository, Eshop.Infrastructure.Repositories.CartRepository>();
+builder.Services.AddScoped<Eshop.Core.Interfaces.ICartService, Eshop.Application.Services.CartService>();
 
 
 // Λέμε στον AutoMapper να ψάξει να βρει όλα τα Profiles στο Application layer
@@ -108,6 +110,47 @@ builder.Services.AddSwaggerGen(c =>
 });
 
 var app = builder.Build();
+
+// ΑΥΤΟΜΑΤΟΠΟΙΗΣΗ MIGRATIONS ΓΙΑ ΟΛΟΥΣ ΤΟΥΣ TENANTS (ENTERPRISE FLOW)
+using (var scope = app.Services.CreateScope())
+{
+    var services = scope.ServiceProvider;
+    var logger = services.GetRequiredService<ILogger<Program>>();
+
+    try
+    {
+        logger.LogInformation("Έναρξη αυτόματων migrations για τη Master Βάση...");
+        var masterContext = services.GetRequiredService<MasterDbContext>();
+        await masterContext.Database.MigrateAsync(); // Ενημερώνει τη Master βάση αν έχει εκκρεμότητες
+
+        var tenantRepo = services.GetRequiredService<ITenantRepository>();
+        var tenants = await tenantRepo.GetAllAsync(); // Παίρνει όλους τους tenants από τη Master
+
+        logger.LogInformation("Βρέθηκαν {Count} Tenants. Έναρξη migrations για τις βάσεις τους...", tenants.Count());
+
+        foreach (var tenant in tenants)
+        {
+            if (string.IsNullOrEmpty(tenant.ConnectionString)) continue;
+
+            logger.LogInformation("Εκτέλεση Migration για τον Tenant: {TenantId}...", tenant.Id);
+
+            // Δημιουργούμε ένα dynamic instance του ApplicationDbContext ειδικά γι' αυτό το connection string
+            var optionsBuilder = new DbContextOptionsBuilder<ApplicationDbContext>();
+            optionsBuilder.UseNpgsql(tenant.ConnectionString);
+
+            using (var tenantContext = new ApplicationDbContext(optionsBuilder.Options))
+            {
+                await tenantContext.Database.MigrateAsync(); // ΤΡΕΧΕΙ ΤΟ MIGRATION ΣΤΗ ΒΑΣΗ ΤΟΥ TENANT!
+            }
+        }
+
+        logger.LogInformation("Όλα τα migrations εκτελέστηκαν επιτυχώς με επιτυχία!");
+    }
+    catch (Exception ex)
+    {
+        logger.LogError(ex, "Προέκυψε σοβαρό σφάλμα κατά την εκτέλεση των αυτόματων migrations!");
+    }
+}
 
 // 4. Ενεργοποίηση του Swagger στο Development Mode
 if (app.Environment.IsDevelopment())

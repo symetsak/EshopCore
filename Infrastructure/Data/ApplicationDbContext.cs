@@ -6,7 +6,13 @@ namespace Eshop.Infrastructure.Data
 {
     public class ApplicationDbContext : DbContext
     {
-        private readonly ITenantProvider _tenantProvider;
+        private readonly ITenantProvider? _tenantProvider;
+
+        // O overloaded constructor για τα migrations στο Program.cs
+        public ApplicationDbContext(DbContextOptions<ApplicationDbContext> options): base(options)
+        {
+            // Εδώ δεν χρειαζόμαστε τον provider, οπότε τον αφήνουμε null ή empty
+        }
 
         // Αυτός ο constructor επιτρέπει να περνάμε δυναμικά το Connection String
         public ApplicationDbContext(DbContextOptions<ApplicationDbContext> options, ITenantProvider tenantProvider) : base(options)
@@ -21,6 +27,8 @@ namespace Eshop.Infrastructure.Data
         public DbSet<Order> Orders { get; set; }
         public DbSet<OrderItem> OrderItems { get; set; }
         public DbSet<RefreshToken> RefreshTokens { get; set; }
+        public DbSet<Cart> Carts { get; set; }
+        public DbSet<CartItem> CartItems { get; set; }
 
         // Αυτή η μέθοδος τρέχει αυτόματα πριν το EF συνδεθεί στη βάση
         protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
@@ -28,7 +36,7 @@ namespace Eshop.Infrastructure.Data
             // Αν το optionsBuilder δεν έχει ρυθμιστεί ήδη (π.χ. από το DesignTime Factory)
             if (!optionsBuilder.IsConfigured)
             {
-                var connString = _tenantProvider.ConnectionString;
+                var connString = _tenantProvider!.ConnectionString;
 
                 if (string.IsNullOrEmpty(connString))
                 {
@@ -104,6 +112,19 @@ namespace Eshop.Infrastructure.Data
                 .WithMany() // Αν θες, μπορείς να αφήσεις άδεια τη λίστα στο User
                 .HasForeignKey(rt => rt.UserId)
                 .OnDelete(DeleteBehavior.Cascade); // Αν διαγραφεί ο χρήστης, σβήνονται αυτόματα και τα tokens του
+
+            // Σχέσεις για το Καλάθι (Cart -> CartItems)
+            modelBuilder.Entity<CartItem>()
+                .HasOne(ci => ci.Cart)
+                .WithMany(c => c.CartItems)
+                .HasForeignKey(ci => ci.CartId)
+                .OnDelete(DeleteBehavior.Cascade); // Αν διαγραφεί το καλάθι, σβήνονται και τα items
+
+            modelBuilder.Entity<CartItem>()
+                .HasOne(ci => ci.Product)
+                .WithMany() // Δεν χρειάζεται λίστα από CartItems μέσα στο Product
+                .HasForeignKey(ci => ci.ProductId)
+                .OnDelete(DeleteBehavior.Restrict); // Δεν αφήνουμε να διαγραφεί προϊόν αν είναι μέσα σε καλάθι
         }
     }
 }
