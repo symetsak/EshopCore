@@ -70,6 +70,21 @@ namespace Eshop.API.Controllers
             return Ok(orders);
         }
 
+        // GET: api/Orders/admin/{id}
+        [HttpGet("admin/{id}")]
+        [Authorize(Roles = "Administrator")]
+        public async Task<IActionResult> GetOrderDetailsForAdmin(int id)
+        {
+            var order = await _orderService.GetOrderDetailsForAdminAsync(id);
+
+            if (order == null)
+            {
+                return NotFound(new { message = $"Η παραγγελία με ID {id} δεν βρέθηκε." });
+            }
+
+            return Ok(order);
+        }
+
         // PUT: api/orders/admin/{id}/status
         [HttpPut("admin/{id}/status")]
         [Authorize(Roles = "Administrator")] // Μόνο ο Admin μπορεί να αλλάξει status

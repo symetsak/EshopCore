@@ -46,6 +46,7 @@ namespace Eshop.Application.Services
             var token = GenerateCustomerToken(customer);
             var response = _mapper.Map<CustomerAuthResponseDto>(customer);
             response.Token = token;
+            response.RefreshToken = customer.RefreshToken;
 
             return response;
         }
@@ -66,6 +67,7 @@ namespace Eshop.Application.Services
             var token = GenerateCustomerToken(customer);
             var response = _mapper.Map<CustomerAuthResponseDto>(customer);
             response.Token = token;
+            response.RefreshToken = customer.RefreshToken;
 
             return response;
         }
@@ -126,6 +128,24 @@ namespace Eshop.Application.Services
             using var rng = RandomNumberGenerator.Create();
             rng.GetBytes(randomNumber);
             return Convert.ToBase64String(randomNumber);
+        }
+
+        public async Task<bool> LogoutAsync(string refreshToken)
+        {
+            // 1. Αναζήτηση του Customer βάσει του Refresh Token
+            var customer = await _customerRepo.GetByRefreshTokenAsync(refreshToken);
+
+            // Αν δεν βρεθεί ο customer (π.χ. άκυρο ή ήδη σβησμένο token), επιστρέφουμε false
+            if (customer == null) return false;
+
+            // 2. Μηδενισμός των πεδίων του token για την ακύρωσή του (Revoke)
+            customer.RefreshToken = string.Empty;
+            customer.RefreshTokenExpiry = DateTime.MinValue; 
+
+            // 3. Αποθήκευση των αλλαγών στη βάση
+            await _customerRepo.SaveChangesAsync();
+
+            return true;
         }
     }
 }

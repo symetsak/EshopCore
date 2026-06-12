@@ -184,5 +184,17 @@ namespace Eshop.Application.Services
                 RevenueByCategory = revenueByCategory
             };
         }
+
+        public async Task<OrderResponseDto?> GetOrderDetailsForAdminAsync(int orderId)
+        {
+            // 1. Ζητάμε την παραγγελία από το Repository.
+            // ΣΗΜΑΝΤΙΚΟ: Το Repo σου πρέπει να κάνει .Include(o => o.OrderItems).ThenInclude(oi => oi.Product)
+            var order = await _orderRepo.GetByIdWithItemsAsync(orderId);
+
+            if (order == null) return null;
+
+            // 2. Mapping στο DTO που περιέχει τη λίστα με τα προϊόντα
+            return _mapper.Map<OrderResponseDto>(order);
+        }
     }
 }

@@ -6,5 +6,6 @@ namespace Eshop.Core.Interfaces
     {
         Task<LoginResponseDto?> LoginAsync(LoginRequestDto dto, string tenantId);
         Task<LoginResponseDto?> RefreshAsync(RefreshTokenRequestDto dto, string tenantId);
+        Task<bool> LogoutAsync(string refreshToken);
     }
 }

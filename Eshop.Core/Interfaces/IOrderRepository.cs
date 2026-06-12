@@ -9,5 +9,6 @@ namespace Eshop.Core.Interfaces
         Task<IEnumerable<Order>> GetAllOrdersAsync(); // Για τον Admin του Tenant
         Task AddAsync(Order order);
         Task SaveChangesAsync();
+        Task<Order?> GetByIdWithItemsAsync(int id);
     }
 }

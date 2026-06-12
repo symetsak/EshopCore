@@ -35,5 +35,7 @@ namespace Eshop.Infrastructure.Repositories
         {
             return await _context.Tenants.AnyAsync(t => t.Id == id);
         }
+
+        public async Task SaveChangesAsync() => await _context.SaveChangesAsync();
     }
 }

@@ -10,5 +10,6 @@ namespace Eshop.Core.Interfaces
         Task<IEnumerable<OrderResponseDto>> GetAllTenantOrdersAsync();
         Task<OrderResponseDto?> UpdateOrderStatusAsync(int orderId, OrderStatusUpdateDto dto);
         Task<AdminDashboardDto> GetAdminDashboardStatsAsync();
+        Task<OrderResponseDto?> GetOrderDetailsForAdminAsync(int orderId);
     }
 }

@@ -136,5 +136,20 @@ namespace Eshop.Application.Services
                 CreatedAt = DateTime.UtcNow
             };
         }
+
+        public async Task<bool> LogoutAsync(string refreshToken)
+        {
+            // 1. Αναζήτηση του Refresh Token στη βάση μέσω του έτοιμου Repository σου
+            var storedToken = await _userRepo.GetRefreshTokenWithUserAsync(refreshToken);
+
+            // Αν δεν βρεθεί (π.χ. έχει ήδη διαγραφεί ή είναι άκυρο), επιστρέφουμε false
+            if (storedToken == null) return false;
+
+            // 2. Διαγραφή του token από τη βάση
+            _userRepo.RemoveRefreshToken(storedToken);
+            await _userRepo.SaveChangesAsync();
+
+            return true;
+        }
     }
 }
