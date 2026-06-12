@@ -56,5 +56,24 @@ namespace Eshop.API.Controllers
 
             return Ok(response);
         }
+
+        // POST: api/customers/logout
+        [HttpPost("logout")]
+        public async Task<IActionResult> Logout([FromBody] CustomerRefreshRequestDto dto)
+        {
+            if (string.IsNullOrEmpty(dto.RefreshToken))
+            {
+                return BadRequest(new { message = "Το Refresh Token είναι υποχρεωτικό." });
+            }
+
+            var result = await _customerService.LogoutAsync(dto.RefreshToken);
+
+            if (!result)
+            {
+                return BadRequest(new { message = "Μη έγκυρο ή ήδη ληγμένο Refresh Token." });
+            }
+
+            return Ok(new { message = "Αποσύνδεση πελάτη επιτυχής. Το token ακυρώθηκε." });
+        }
     }
 }

@@ -1,6 +1,8 @@
-﻿using Microsoft.AspNetCore.Mvc;
-using Eshop.Application.Services;
+﻿using Eshop.Application.Services;
+using Eshop.Core.DTOs;
 using Eshop.Core.Entities;
+using Eshop.Core.Interfaces;
+using Microsoft.AspNetCore.Mvc;
 
 namespace Eshop.API.Controllers
 {
@@ -9,11 +11,13 @@ namespace Eshop.API.Controllers
     public class TenantsController : ControllerBase
     {
         private readonly TenantApplicationService _tenantAppService;
+        private readonly ITenantRepository _tenantRepository;
 
         // Κάνουμε inject το Application Service
-        public TenantsController(TenantApplicationService tenantAppService)
+        public TenantsController(TenantApplicationService tenantAppService, ITenantRepository tenantRepository)
         {
             _tenantAppService = tenantAppService;
+            _tenantRepository = tenantRepository;
         }
 
         // GET: api/tenants
@@ -55,6 +59,27 @@ namespace Eshop.API.Controllers
             {
                 return StatusCode(500, "Παρουσιάστηκε ένα εσωτερικό σφάλμα στον server.");
             }
+        }
+
+        [HttpPut("{id}")]
+        public async Task<IActionResult> UpdateTenant(string id, [FromBody] TenantUpdateDto dto)
+        {
+            // 1. Ψάχνουμε τον Tenant στη Master Βάση
+            var tenant = await _tenantRepository.GetByIdAsync(id);
+
+            if (tenant == null)
+            {
+                return NotFound(new { message = $"Ο Tenant με ID '{id}' δεν βρέθηκε." });
+            }
+
+            // 2. Ενημερώνουμε τα πεδία
+            tenant.Name = dto.Name;
+            tenant.IsActive = dto.IsActive;
+
+            // 3. Σώζουμε τις αλλαγές direct μέσω του Repo
+            await _tenantRepository.SaveChangesAsync();
+
+            return Ok(new { message = $"Ο Tenant '{id}' ενημερώθηκε επιτυχώς.", tenant });
         }
     }
 }

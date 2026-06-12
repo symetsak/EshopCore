@@ -51,5 +51,14 @@ namespace Eshop.Infrastructure.Repositories
         {
             await _context.SaveChangesAsync();
         }
+
+        public async Task<Order?> GetByIdWithItemsAsync(int id)
+        {
+            return await _context.Orders
+                .Include(o => o.OrderItems)          // Φέρνει τη λίστα των προϊόντων της παραγγελίας
+                .ThenInclude(oi => oi.Product)       // Για κάθε item, φέρνει τις λεπτομέρειες του Product (Name, Price κλπ)
+                .FirstOrDefaultAsync(o => o.Id == id);
+        }
+
     }
 }

@@ -8,5 +8,6 @@ namespace Eshop.Core.Interfaces
         Task<IEnumerable<Tenant>> GetAllAsync();
         Task AddAsync(Tenant tenant);
         Task<bool> ExistsAsync(string id);
+        Task SaveChangesAsync();
     }
 }
