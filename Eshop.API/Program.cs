@@ -10,6 +10,8 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
 
+AppContext.SetSwitch("Npgsql.EnableLegacyTimestampBehavior", true);
+
 var builder = WebApplication.CreateBuilder(args);
 
 // 1. Ρύθμιση της PostgreSQL για το MasterDbContext
@@ -39,6 +41,8 @@ builder.Services.AddScoped<Eshop.Core.Interfaces.IOrderService, Eshop.Applicatio
 builder.Services.AddScoped<Eshop.Core.Interfaces.IFileService, Eshop.Infrastructure.Services.FileService>();
 builder.Services.AddScoped<Eshop.Core.Interfaces.ICartRepository, Eshop.Infrastructure.Repositories.CartRepository>();
 builder.Services.AddScoped<Eshop.Core.Interfaces.ICartService, Eshop.Application.Services.CartService>();
+builder.Services.AddScoped<Eshop.Core.Interfaces.ICouponRepository, Eshop.Infrastructure.Repositories.CouponRepository>();
+builder.Services.AddScoped<Eshop.Core.Interfaces.ICouponService, Eshop.Application.Services.CouponService>();
 
 
 // Λέμε στον AutoMapper να ψάξει να βρει όλα τα Profiles στο Application layer

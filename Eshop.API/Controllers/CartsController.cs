@@ -99,5 +99,28 @@ namespace Eshop.API.Controllers
                 return BadRequest(new { message = ex.Message });
             }
         }
+
+        // 6. POST: api/carts/coupon -> Εφαρμογή κουπονιού στο καλάθι
+        [HttpPost("coupon")]
+        public async Task<IActionResult> ApplyCoupon([FromQuery] string couponCode)
+        {
+            var customerId = GetCurrentCustomerId();
+            if (customerId == 0) return Unauthorized(new { message = "Μη έγκυρος χρήστης." });
+
+            if (string.IsNullOrWhiteSpace(couponCode))
+            {
+                return BadRequest(new { message = "Ο κωδικός κουπονιού δεν μπορεί να είναι κενός." });
+            }
+
+            try
+            {
+                await _cartService.ApplyCouponAsync(customerId, couponCode);
+                return Ok(new { message = $"Το κουπόνι '{couponCode}' καταχωρήθηκε στο καλάθι επιτυχώς!" });
+            }
+            catch (InvalidOperationException ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
+        }
     }
 }
