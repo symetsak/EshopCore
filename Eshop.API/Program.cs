@@ -1,12 +1,13 @@
-﻿using Eshop.API.Middleware;
+﻿using AutoMapper;
+using Eshop.API.Middleware;
 using Eshop.Application.Services;
 using Eshop.Core.Interfaces;
 using Eshop.Infrastructure.Data;
 using Eshop.Infrastructure.Repositories;
 using Eshop.Infrastructure.Services;
 using Eshop.Infrastructure.Tenancy;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
 
@@ -114,6 +115,25 @@ builder.Services.AddSwaggerGen(c =>
 });
 
 var app = builder.Build();
+
+/*
+// ΤΕΣΤ ΣΥΓΚΕΝΤΡΩΣΗΣ AUTOMAPPER
+using (var scope = app.Services.CreateScope())
+{
+    var mapper = scope.ServiceProvider.GetRequiredService<IMapper>();
+    try
+    {
+        mapper.ConfigurationProvider.AssertConfigurationIsValid();
+        Console.WriteLine("Το AutoMapper είναι 100% ΕΓΚΥΡΟ!");
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine("ΣΦΑΛΜΑ ΣΤΟ AUTOMAPPER:");
+        Console.WriteLine(ex.Message);
+        // throw; // Αν ξεσχολιάσεις το throw, το app θα κρασάρει στην εκκίνηση δείχνοντάς σου το λάθος!
+    }
+}
+*/
 
 // ΑΥΤΟΜΑΤΟΠΟΙΗΣΗ MIGRATIONS ΓΙΑ ΟΛΟΥΣ ΤΟΥΣ TENANTS (ENTERPRISE FLOW)
 using (var scope = app.Services.CreateScope())

@@ -39,7 +39,7 @@ namespace Eshop.Application.Services
                     ProductId = ci.ProductId,
                     ProductName = ci.Product.Name,
                     ProductImageUrl = ci.Product.ImageUrl ?? string.Empty, 
-                    Price = ci.Product.Price,             
+                    Price = ci.Product.CurrentPrice,             
                     Quantity = ci.Quantity
                 }).ToList()
             };
@@ -100,7 +100,7 @@ namespace Eshop.Application.Services
             }
 
             // 2. Υπολογίζουμε το συνολικό ποσό (εδώ θα μπουν και τα κουπόνια αύριο!)
-            decimal subTotal = cart.CartItems.Sum(ci => ci.Product.Price * ci.Quantity);
+            decimal subTotal = cart.CartItems.Sum(ci => ci.Product.CurrentPrice * ci.Quantity);
 
             decimal discount = 0; 
 
@@ -123,7 +123,7 @@ namespace Eshop.Application.Services
                 {
                     ProductId = ci.ProductId,
                     Quantity = ci.Quantity,
-                    UnitPrice = ci.Product.Price // Κλειδώνουμε την τιμή αγοράς!
+                    UnitPrice = ci.Product.CurrentPrice // Κλειδώνουμε την τιμή αγοράς!
                 }).ToList()
             };
 

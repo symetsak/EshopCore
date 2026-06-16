@@ -1,7 +1,6 @@
 ﻿using AutoMapper;
 using Eshop.Core.Entities;
 using Eshop.Core.DTOs;
-using static System.Runtime.InteropServices.JavaScript.JSType;
 
 namespace Eshop.Application.DTOs
 {
@@ -9,15 +8,49 @@ namespace Eshop.Application.DTOs
     {
         public MappingProfile()
         {
-            CreateMap<User, LoginResponseDto>();
-            CreateMap<ProductCreateDto, Eshop.Core.Entities.Product>();
-            CreateMap<Eshop.Core.Entities.Product, ProductResponseDto>();
-            CreateMap<CategoryCreateDto, Eshop.Core.Entities.Category>();
-            CreateMap<Eshop.Core.Entities.Category, CategoryResponseDto>();
-            CreateMap<CustomerRegisterDto, Eshop.Core.Entities.Customer>();
-            CreateMap<Eshop.Core.Entities.Customer, CustomerAuthResponseDto>();
+            // 1. Users
+            CreateMap<User, LoginResponseDto>()
+                .ForMember(dest => dest.Token, opt => opt.Ignore())
+                .ForMember(dest => dest.RefreshToken, opt => opt.Ignore());
+
+            // 2. Products
+            CreateMap<ProductCreateDto, Product>()
+                .ForMember(dest => dest.Id, opt => opt.Ignore())
+                .ForMember(dest => dest.SalePrice, opt => opt.Ignore())
+                .ForMember(dest => dest.SaleStartDate, opt => opt.Ignore())
+                .ForMember(dest => dest.SaleEndDate, opt => opt.Ignore())
+                .ForMember(dest => dest.ImageUrl, opt => opt.Ignore())
+                .ForMember(dest => dest.Category, opt => opt.Ignore());
+
+            CreateMap<Product, ProductResponseDto>()
+                .ForMember(dest => dest.Price, opt => opt.MapFrom(src => src.CurrentPrice))
+                .ForMember(dest => dest.OriginalPrice, opt => opt.MapFrom(src => src.Price))
+                .ReverseMap();
+
+            // 3. Categories
+            CreateMap<CategoryCreateDto, Category>()
+                .ForMember(dest => dest.Id, opt => opt.Ignore())
+                .ForMember(dest => dest.Products, opt => opt.Ignore());
+
+            CreateMap<Category, CategoryResponseDto>();
+
+            // 4. Customers (💡 ΕΔΩ ΗΤΑΝ ΤΟ ΛΑΘΟΣ - ΔΙΟΡΘΩΘΗΚΕ!)
+            CreateMap<CustomerRegisterDto, Customer>()
+                .ForMember(dest => dest.Id, opt => opt.Ignore())
+                .ForMember(dest => dest.PasswordHash, opt => opt.Ignore())
+                .ForMember(dest => dest.CreatedAt, opt => opt.Ignore())
+                .ForMember(dest => dest.RefreshToken, opt => opt.Ignore())
+                .ForMember(dest => dest.RefreshTokenExpiry, opt => opt.Ignore())
+                .ForMember(dest => dest.Orders, opt => opt.Ignore());
+
+            CreateMap<Customer, CustomerAuthResponseDto>()
+                .ForMember(dest => dest.Token, opt => opt.Ignore());
+
+            // 5. Orders
             CreateMap<Order, OrderResponseDto>();
-            CreateMap<OrderItem, OrderItemResponseDto>().ForMember(dest => dest.ProductName, opt => opt.MapFrom(src => src.Product != null ? src.Product.Name : string.Empty)); // κανόνας για να γεμίζει το ProductName απευθείας από το Line Item
+
+            CreateMap<OrderItem, OrderItemResponseDto>()
+                .ForMember(dest => dest.ProductName, opt => opt.MapFrom(src => src.Product != null ? src.Product.Name : string.Empty));
         }
     }
 }

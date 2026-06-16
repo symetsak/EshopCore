@@ -133,5 +133,50 @@ namespace Eshop.Application.Services
 
             return _mapper.Map<ProductResponseDto>(product);
         }
+
+        public async Task ApplyDiscountAsync(int productId, UpdateProductDiscountDto dto)
+        {
+            var product = await _productRepo.GetByIdAsync(productId);
+            if (product == null)
+            {
+                throw new KeyNotFoundException("Το προϊόν δεν βρέθηκε.");
+            }
+
+            decimal finalSalePrice = 0;
+
+            // 💡 Σενάριο Α: Ο Admin έβαλε Ποσοστό Έκπτωσης (π.χ. 15%)
+            if (dto.DiscountPercentage.HasValue && dto.DiscountPercentage.Value > 0)
+            {
+                if (dto.DiscountPercentage.Value >= 100)
+                {
+                    throw new InvalidOperationException("Η έκπτωση δεν μπορεί να είναι 100% ή παραπάνω.");
+                }
+
+                // Υπολογισμός τιμής: Αρχική - (Αρχική * (Ποσοστό / 100))
+                var discountAmount = product.Price * ((decimal)dto.DiscountPercentage.Value / 100);
+                finalSalePrice = product.Price - discountAmount;
+            }
+            // 💡 Σενάριο Β: Ο Admin έβαλε κατευθείαν Τιμή Προσφοράς (π.χ. 80€)
+            else if (dto.SalePrice.HasValue && dto.SalePrice.Value > 0)
+            {
+                if (dto.SalePrice.Value >= product.Price)
+                {
+                    throw new InvalidOperationException("Η τιμή προσφοράς πρέπει να είναι μικρότερη από την αρχική τιμή.");
+                }
+                finalSalePrice = dto.SalePrice.Value;
+            }
+            else
+            {
+                throw new InvalidOperationException("Πρέπει να καταχωρήσετε είτε Τιμή Προσφοράς είτε Ποσοστό Έκπτωσης.");
+            }
+
+            // Αποθήκευση στο Entity
+            product.SalePrice = Math.Round(finalSalePrice, 2); // Στρογγυλοποίηση στα 2 δεκαδικά
+            product.SaleStartDate = dto.SaleStartDate.HasValue ? DateTime.SpecifyKind(dto.SaleStartDate.Value, DateTimeKind.Utc) : null;
+            product.SaleEndDate = dto.SaleEndDate.HasValue ? DateTime.SpecifyKind(dto.SaleEndDate.Value, DateTimeKind.Utc) : null;
+
+            _productRepo.Update(product); 
+            await _productRepo.SaveChangesAsync();
+        }
     }
 }
