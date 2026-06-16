@@ -1,14 +1,17 @@
-﻿using Eshop.API.Middleware;
+﻿using AutoMapper;
+using Eshop.API.Middleware;
 using Eshop.Application.Services;
 using Eshop.Core.Interfaces;
 using Eshop.Infrastructure.Data;
 using Eshop.Infrastructure.Repositories;
 using Eshop.Infrastructure.Services;
 using Eshop.Infrastructure.Tenancy;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
+
+AppContext.SetSwitch("Npgsql.EnableLegacyTimestampBehavior", true);
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -39,6 +42,8 @@ builder.Services.AddScoped<Eshop.Core.Interfaces.IOrderService, Eshop.Applicatio
 builder.Services.AddScoped<Eshop.Core.Interfaces.IFileService, Eshop.Infrastructure.Services.FileService>();
 builder.Services.AddScoped<Eshop.Core.Interfaces.ICartRepository, Eshop.Infrastructure.Repositories.CartRepository>();
 builder.Services.AddScoped<Eshop.Core.Interfaces.ICartService, Eshop.Application.Services.CartService>();
+builder.Services.AddScoped<Eshop.Core.Interfaces.ICouponRepository, Eshop.Infrastructure.Repositories.CouponRepository>();
+builder.Services.AddScoped<Eshop.Core.Interfaces.ICouponService, Eshop.Application.Services.CouponService>();
 
 
 // Λέμε στον AutoMapper να ψάξει να βρει όλα τα Profiles στο Application layer
@@ -110,6 +115,25 @@ builder.Services.AddSwaggerGen(c =>
 });
 
 var app = builder.Build();
+
+/*
+// ΤΕΣΤ ΣΥΓΚΕΝΤΡΩΣΗΣ AUTOMAPPER
+using (var scope = app.Services.CreateScope())
+{
+    var mapper = scope.ServiceProvider.GetRequiredService<IMapper>();
+    try
+    {
+        mapper.ConfigurationProvider.AssertConfigurationIsValid();
+        Console.WriteLine("Το AutoMapper είναι 100% ΕΓΚΥΡΟ!");
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine("ΣΦΑΛΜΑ ΣΤΟ AUTOMAPPER:");
+        Console.WriteLine(ex.Message);
+        // throw; // Αν ξεσχολιάσεις το throw, το app θα κρασάρει στην εκκίνηση δείχνοντάς σου το λάθος!
+    }
+}
+*/
 
 // ΑΥΤΟΜΑΤΟΠΟΙΗΣΗ MIGRATIONS ΓΙΑ ΟΛΟΥΣ ΤΟΥΣ TENANTS (ENTERPRISE FLOW)
 using (var scope = app.Services.CreateScope())

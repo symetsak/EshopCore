@@ -32,4 +32,15 @@ namespace Eshop.Core.DTOs
         public decimal Discount { get; set; } = 0; // ΕΔΩ ΘΑ ΜΠΕΙ ΤΟ ΚΟΥΠΟΝΙ ΑΡΓΟΤΕΡΑ
         public decimal Total => SubTotal - Discount;
     }
+
+    public class CreateCouponDto
+    {
+        public string Code { get; set; } = string.Empty;
+        public string DiscountType { get; set; } = "Percentage";
+        public decimal DiscountValue { get; set; }
+        public decimal MinimumSubTotalRequired { get; set; } = 0;
+        public string StartDate { get; set; } = string.Empty; 
+        public string EndDate { get; set; } = string.Empty;  
+        public bool IsActive { get; set; } = true;
+    }
 }

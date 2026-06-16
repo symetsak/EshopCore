@@ -114,5 +114,24 @@ namespace Eshop.API.Controllers
                 return BadRequest(new { message = ex.Message });
             }
         }
+
+        [Authorize(Roles = "Administrator")]
+        [HttpPut("{id}/discounts")]
+        public async Task<IActionResult> ApplyProductDiscount(int id, [FromBody] UpdateProductDiscountDto dto)
+        {
+            try
+            {
+                await _productService.ApplyDiscountAsync(id, dto);
+                return Ok(new { message = "Η προσφορά εφαρμόστηκε με επιτυχία!" });
+            }
+            catch (KeyNotFoundException ex)
+            {
+                return NotFound(new { message = ex.Message });
+            }
+            catch (InvalidOperationException ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
+        }
     }
 }

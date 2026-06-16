@@ -10,11 +10,13 @@ namespace Eshop.Application.Services
     {
         private readonly ICartRepository _cartRepo;
         private readonly IOrderRepository _orderRepo;
+        private readonly ICouponService _couponService;
 
-        public CartService(ICartRepository cartRepo, IOrderRepository orderRepo)
+        public CartService(ICartRepository cartRepo, IOrderRepository orderRepo, ICouponService couponService)
         {
             _cartRepo = cartRepo;
             _orderRepo = orderRepo;
+            _couponService = couponService;
         }
 
         public async Task<CartResponseDto> GetCartByCustomerAsync(int customerId)
@@ -36,16 +38,37 @@ namespace Eshop.Application.Services
                 {
                     ProductId = ci.ProductId,
                     ProductName = ci.Product.Name,
-                    ProductImageUrl = ci.Product.ImageUrl ?? string.Empty, // Αν έχεις ImageUrl στο Product entity
-                    Price = ci.Product.Price,             // ΕΔΩ ΑΥΡΙΟ ΘΑ ΜΠΑΙΝΕΙ Η ΤΙΜΗ ΤΗΣ ΠΡΟΣΦΟΡΑΣ (Offer Price)!
+                    ProductImageUrl = ci.Product.ImageUrl ?? string.Empty, 
+                    Price = ci.Product.CurrentPrice,             
                     Quantity = ci.Quantity
                 }).ToList()
             };
 
-            // ΕΔΩ ΑΥΡΙΟ ΘΑ ΚΑΛΟΥΜΕ ΤΗ ΛΟΓΙΚΗ ΤΩΝ ΚΟΥΠΟΝΙΩΝ!
-            // π.χ. response.Discount = await _couponService.CalculateDiscountAsync(cart);
+            // ΕΔΩ ΓΙΝΕΤΑΙ Η ΜΑΓΕΙΑ ΤΩΝ ΚΟΥΠΟΝΙΩΝ!
+            if (!string.IsNullOrEmpty(cart.AppliedCouponCode))
+            {
+                // Καλούμε το CouponService να μας πει πόση έκπτωση δικαιούται ο πελάτης
+                response.Discount = await _couponService.CalculateDiscountAsync(cart.AppliedCouponCode, response.SubTotal);
+
+                // Αν για κάποιο λόγο το κουπόνι έληξε ή δεν πιάνει πια το όριο (π.χ. ο χρήστης αφαίρεσε προϊόντα),
+                // το discount θα επιστρέψει 0, οπότε το frontend θα ξέρει ότι δεν ισχύει.
+            }
 
             return response;
+        }
+
+        public async Task ApplyCouponAsync(int customerId, string couponCode)
+        {
+            var cart = await _cartRepo.GetByCustomerIdAsync(customerId);
+            if (cart == null)
+            {
+                throw new InvalidOperationException("Δεν βρέθηκε ενεργό καλάθι για αυτόν τον πελάτη.");
+            }
+
+            // Αποθηκεύουμε τον κωδικό του κουπονιού στο καλάθι
+            cart.AppliedCouponCode = couponCode;
+
+            await _cartRepo.SaveChangesAsync();
         }
 
         public async Task AddOrUpdateItemAsync(int customerId, AddToCartDto dto)
@@ -77,8 +100,14 @@ namespace Eshop.Application.Services
             }
 
             // 2. Υπολογίζουμε το συνολικό ποσό (εδώ θα μπουν και τα κουπόνια αύριο!)
-            decimal subTotal = cart.CartItems.Sum(ci => ci.Product.Price * ci.Quantity);
-            decimal discount = 0; // Placeholder για κουπόνια
+            decimal subTotal = cart.CartItems.Sum(ci => ci.Product.CurrentPrice * ci.Quantity);
+
+            decimal discount = 0; 
+
+            if (!string.IsNullOrEmpty(cart.AppliedCouponCode))
+            {
+                discount = await _couponService.CalculateDiscountAsync(cart.AppliedCouponCode, subTotal);
+            }
             decimal total = subTotal - discount;
 
             // 3. Δημιουργούμε το Order Entity
@@ -87,14 +116,14 @@ namespace Eshop.Application.Services
                 CustomerId = customerId,
                 OrderDate = DateTime.UtcNow,
                 TotalAmount = total,
-                Status = "Pending", // Ή OrderStatus.Pending αν έχεις Enum
+                Status = "Pending", 
 
                 // Μετατρέπουμε τα CartItems σε OrderItems
                 OrderItems = cart.CartItems.Select(ci => new OrderItem
                 {
                     ProductId = ci.ProductId,
                     Quantity = ci.Quantity,
-                    UnitPrice = ci.Product.Price // Κλειδώνουμε την τιμή αγοράς!
+                    UnitPrice = ci.Product.CurrentPrice // Κλειδώνουμε την τιμή αγοράς!
                 }).ToList()
             };
 
@@ -104,6 +133,9 @@ namespace Eshop.Application.Services
 
             // 5. ΑΔΕΙΑΖΟΥΜΕ το καλάθι του χρήστη, αφού ολοκληρώθηκε η αγορά!
             await _cartRepo.ClearCartAsync(customerId);
+            
+            cart.AppliedCouponCode = null; // Προσοχή: Όταν αδειάζει το καλάθι, μηδενίζουμε και το εφαρμοσμένο κουπόνι για την επόμενη αγορά
+
             await _cartRepo.SaveChangesAsync();
 
             return order.Id; // Επιστρέφουμε το ID της νέας παραγγελίας

@@ -10,5 +10,6 @@ namespace Eshop.Core.Interfaces
         Task RemoveItemAsync(int customerId, int productId);
         Task ClearCartAsync(int customerId);
         Task<int> CheckoutAsync(int customerId);
+        Task ApplyCouponAsync(int customerId, string couponCode);
     }
 }

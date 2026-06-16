@@ -1,6 +1,7 @@
-﻿using Microsoft.EntityFrameworkCore;
-using Eshop.Core.Entities;
+﻿using Eshop.Core.Entities;
 using Eshop.Core.Interfaces;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 
 namespace Eshop.Infrastructure.Data
 {
@@ -29,6 +30,7 @@ namespace Eshop.Infrastructure.Data
         public DbSet<RefreshToken> RefreshTokens { get; set; }
         public DbSet<Cart> Carts { get; set; }
         public DbSet<CartItem> CartItems { get; set; }
+        public DbSet<Coupon> Coupons { get; set; }
 
         // Αυτή η μέθοδος τρέχει αυτόματα πριν το EF συνδεθεί στη βάση
         protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
@@ -47,6 +49,8 @@ namespace Eshop.Infrastructure.Data
             }
 
             base.OnConfiguring(optionsBuilder);
+
+            optionsBuilder.ConfigureWarnings(w => w.Ignore(RelationalEventId.PendingModelChangesWarning));
         }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -125,6 +129,8 @@ namespace Eshop.Infrastructure.Data
                 .WithMany() // Δεν χρειάζεται λίστα από CartItems μέσα στο Product
                 .HasForeignKey(ci => ci.ProductId)
                 .OnDelete(DeleteBehavior.Restrict); // Δεν αφήνουμε να διαγραφεί προϊόν αν είναι μέσα σε καλάθι
+
+            modelBuilder.Entity<Coupon>().HasIndex(c => c.Code).IsUnique();
         }
     }
 }

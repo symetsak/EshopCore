@@ -13,5 +13,6 @@ namespace Eshop.Core.Interfaces
         Task<PagedResultDto<ProductResponseDto>> GetFilteredProductsAsync(ProductFilterDto filter);
         Task<ProductResponseDto> UploadImageAsync(int productId, IFormFile file, string tenantId);
         Task<ProductResponseDto> DeleteProductImageAsync(int productId);
+        Task ApplyDiscountAsync(int productId, UpdateProductDiscountDto dto);
     }
 }
