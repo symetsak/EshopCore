@@ -11,12 +11,14 @@ namespace Eshop.Application.Services
         private readonly ICartRepository _cartRepo;
         private readonly IOrderRepository _orderRepo;
         private readonly ICouponService _couponService;
+        private readonly IPaymentStrategyFactory _paymentFactory;
 
-        public CartService(ICartRepository cartRepo, IOrderRepository orderRepo, ICouponService couponService)
+        public CartService(ICartRepository cartRepo, IOrderRepository orderRepo, ICouponService couponService, IPaymentStrategyFactory paymentFactory)
         {
             _cartRepo = cartRepo;
             _orderRepo = orderRepo;
             _couponService = couponService;
+            _paymentFactory = paymentFactory;
         }
 
         public async Task<CartResponseDto> GetCartByCustomerAsync(int customerId)
@@ -90,7 +92,7 @@ namespace Eshop.Application.Services
             await _cartRepo.SaveChangesAsync();
         }
 
-        public async Task<int> CheckoutAsync(int customerId)
+        public async Task<CheckoutResultDto> CheckoutAsync(int customerId, string paymentProvider, string tenantId)
         {
             // 1. Φέρνουμε το καλάθι του πελάτη με τα items και τα προϊόντα
             var cart = await _cartRepo.GetByCustomerIdAsync(customerId);
@@ -131,14 +133,32 @@ namespace Eshop.Application.Services
             await _orderRepo.AddAsync(order); // Αν το Repo σου έχει AddAsync
             await _orderRepo.SaveChangesAsync();
 
-            // 5. ΑΔΕΙΑΖΟΥΜΕ το καλάθι του χρήστη, αφού ολοκληρώθηκε η αγορά!
-            await _cartRepo.ClearCartAsync(customerId);
-            
-            cart.AppliedCouponCode = null; // Προσοχή: Όταν αδειάζει το καλάθι, μηδενίζουμε και το εφαρμοσμένο κουπόνι για την επόμενη αγορά
+            // 5. ΠΡΩΤΑ μηδενίζουμε το κουπόνι πάνω στο cart object
+            cart.AppliedCouponCode = null;
 
+            // 6. Σώζουμε την αλλαγή του κουπονιού στη βάση
             await _cartRepo.SaveChangesAsync();
 
-            return order.Id; // Επιστρέφουμε το ID της νέας παραγγελίας
+            // 7. Μετά αδειάζουμε τα προϊόντα του καλαθιού
+            await _cartRepo.ClearCartAsync(customerId);
+            await _cartRepo.SaveChangesAsync();
+
+            var paymentStrategy = _paymentFactory.GetPaymentStrategy(paymentProvider);
+
+            // 8. Παράγουμε το URL (Η Stripe θα πάρει το order entity και το tenantId)
+            string paymentUrl = await paymentStrategy.CreateCheckoutSessionAsync(order, tenantId);
+
+            // 9. Επιστρέφουμε το συνδυασμένο αποτέλεσμα
+            return new CheckoutResultDto
+            {
+                OrderId = order.Id,
+                Url = paymentUrl
+            };
+        }
+
+        public Task<int> CheckoutAsync(int customerId)
+        {
+            throw new NotImplementedException();
         }
     }
 }
