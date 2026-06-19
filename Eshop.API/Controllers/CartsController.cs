@@ -13,10 +13,13 @@ namespace Eshop.API.Controllers
     public class CartsController : ControllerBase
     {
         private readonly ICartService _cartService;
+        private readonly ITenantProvider _tenantProvider;
 
-        public CartsController(ICartService cartService)
+
+        public CartsController(ICartService cartService, ITenantProvider tenantProvider)
         {
             _cartService = cartService;
+            _tenantProvider = tenantProvider;
         }
 
         // Helper μέθοδος για να διαβάζει το CustomerId μέσα από το JWT Token
@@ -78,25 +81,39 @@ namespace Eshop.API.Controllers
             return Ok(new { message = "Το καλάθι αδειάστηκε επιτυχώς." });
         }
 
-        // 5. POST: api/carts/checkout -> Ολοκλήρωση αγοράς
+        // 5. POST: api/carts/checkout -> Ολοκλήρωση αγοράς & Παραγωγή Stripe Link
         [HttpPost("checkout")]
-        public async Task<IActionResult> Checkout()
+        public async Task<IActionResult> Checkout([FromQuery] string paymentProvider = "Stripe")
         {
             var customerId = GetCurrentCustomerId();
             if (customerId == 0) return Unauthorized(new { message = "Μη έγκυρος χρήστης." });
 
+            // Διαβάζουμε το TenantId με ασφάλεια
+            var tenantId = Request.Headers["X-Tenant-Id"].ToString();
+            if (string.IsNullOrEmpty(tenantId))
+            {
+                return BadRequest(new { message = "Missing Tenant Header (X-Tenant-Id)." });
+            }
+
             try
             {
-                var orderId = await _cartService.CheckoutAsync(customerId);
+                // Καλούμε το Service περνώντας και τα 3 απαραίτητα στοιχεία
+                var checkoutResult = await _cartService.CheckoutAsync(customerId, paymentProvider, tenantId);
+
                 return Ok(new
                 {
-                    message = "Η παραγγελία ολοκληρώθηκε με επιτυχία!",
-                    orderId = orderId
+                    message = "Η παραγγελία καταχωρήθηκε επιτυχώς! Ανακατεύθυνση στην πύλη πληρωμής.",
+                    orderId = checkoutResult.OrderId,
+                    url = checkoutResult.Url
                 });
             }
             catch (InvalidOperationException ex)
             {
                 return BadRequest(new { message = ex.Message });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { message = $"Internal server error: {ex.Message}" });
             }
         }
 

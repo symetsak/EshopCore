@@ -16,6 +16,11 @@ namespace Eshop.API.Middleware
 
         public async Task InvokeAsync(HttpContext context, ITenantProvider tenantProvider, MasterDbContext masterDbContext)
         {
+            if (context.Request.Path.StartsWithSegments("/api/webhooks/stripe"))
+            {
+                await _next(context);
+                return;
+            }
             // 1. Καθαρισμός και προετοιμασία του Path και της Μεθόδου του Request
             var path = context.Request.Path.Value?.Trim().ToLower() ?? string.Empty;
             var method = context.Request.Method.ToUpper();
