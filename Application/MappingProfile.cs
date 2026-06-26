@@ -34,7 +34,7 @@ namespace Eshop.Application.DTOs
 
             CreateMap<Category, CategoryResponseDto>();
 
-            // 4. Customers (💡 ΕΔΩ ΗΤΑΝ ΤΟ ΛΑΘΟΣ - ΔΙΟΡΘΩΘΗΚΕ!)
+            // 4. Customers 
             CreateMap<CustomerRegisterDto, Customer>()
                 .ForMember(dest => dest.Id, opt => opt.Ignore())
                 .ForMember(dest => dest.PasswordHash, opt => opt.Ignore())
@@ -51,6 +51,9 @@ namespace Eshop.Application.DTOs
 
             CreateMap<OrderItem, OrderItemResponseDto>()
                 .ForMember(dest => dest.ProductName, opt => opt.MapFrom(src => src.Product != null ? src.Product.Name : string.Empty));
+
+            // 6. Product Reviews
+            CreateMap<ProductReview, ReviewResponseDto>();
         }
     }
 }
