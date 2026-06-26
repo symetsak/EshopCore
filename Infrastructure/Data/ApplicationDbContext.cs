@@ -31,6 +31,7 @@ namespace Eshop.Infrastructure.Data
         public DbSet<Cart> Carts { get; set; }
         public DbSet<CartItem> CartItems { get; set; }
         public DbSet<Coupon> Coupons { get; set; }
+        public DbSet<ProductReview> ProductReviews { get; set; }
 
         // Αυτή η μέθοδος τρέχει αυτόματα πριν το EF συνδεθεί στη βάση
         protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
@@ -131,6 +132,19 @@ namespace Eshop.Infrastructure.Data
                 .OnDelete(DeleteBehavior.Restrict); // Δεν αφήνουμε να διαγραφεί προϊόν αν είναι μέσα σε καλάθι
 
             modelBuilder.Entity<Coupon>().HasIndex(c => c.Code).IsUnique();
+
+            // Ρυθμίσεις για τον πίνακα των κριτικών
+            modelBuilder.Entity<ProductReview>(entity =>
+            {
+                // Ο τίτλος να είναι μέχρι 100 χαρακτήρες
+                entity.Property(r => r.Title).HasMaxLength(100);
+
+                // Το σχόλιο είναι προαιρετικό και μέχρι 1000 χαρακτήρες
+                entity.Property(r => r.Comment).IsRequired(false).HasMaxLength(1000);
+
+                // Περιορισμός: Το Rating πρέπει να είναι μεταξύ 1 και 5 στη βάση
+                entity.ToTable(t => t.HasCheckConstraint("CK_ProductReview_Rating", "\"Rating\" >= 1 AND \"Rating\" <= 5"));
+            });
         }
     }
 }
