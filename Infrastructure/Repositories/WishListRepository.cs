@@ -52,5 +52,12 @@ namespace Eshop.Infrastructure.Repositories
         {
             return await _context.SaveChangesAsync() > 0;
         }
+
+        public async Task<IEnumerable<Wishlist>> GetByProductIdAsync(int productId)
+        {
+            return await _context.Wishlists
+                .Where(w => w.ProductId == productId)
+                .ToListAsync();
+        }
     }
 }

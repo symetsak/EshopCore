@@ -10,12 +10,14 @@ namespace Eshop.Application.Services
         private readonly IOrderRepository _orderRepo;
         private readonly IProductRepository _productRepo; // Για έλεγχο και ενημέρωση του Stock
         private readonly IMapper _mapper;
+        private readonly INotificationRepository _notificationRepo;
 
-        public OrderService(IOrderRepository orderRepo, IProductRepository productRepo, IMapper mapper)
+        public OrderService(IOrderRepository orderRepo, IProductRepository productRepo, IMapper mapper, INotificationRepository notificationRepo)
         {
             _orderRepo = orderRepo;
             _productRepo = productRepo;
             _mapper = mapper;
+            _notificationRepo = notificationRepo;
         }
 
         public async Task<OrderResponseDto> CreateOrderAsync(int customerId, OrderCreateDto dto)
@@ -31,7 +33,7 @@ namespace Eshop.Application.Services
                 CustomerId = customerId,
                 OrderDate = DateTime.UtcNow,
                 Status = "Pending",
-                TotalAmount = 0 // Θα το υπολογίσουμε δυναμικά παρακάτω
+                TotalAmount = 0 
             };
 
             decimal totalAmount = 0;
@@ -41,16 +43,10 @@ namespace Eshop.Application.Services
             {
                 // Τραβάμε το προϊόν από τη βάση του Tenant
                 var product = await _productRepo.GetByIdAsync(itemDto.ProductId);
-                if (product == null)
-                {
-                    throw new KeyNotFoundException($"Το προϊόν με ID {itemDto.ProductId} δεν βρέθηκε.");
-                }
+                if (product == null) throw new KeyNotFoundException($"Το προϊόν με ID {itemDto.ProductId} δεν βρέθηκε.");
 
                 // ΕΛΕΓΧΟΣ STOCK: Έχουμε αρκετά κομμάτια;
-                if (product.StockQuantity < itemDto.Quantity)
-                {
-                    throw new InvalidOperationException($"Ανεπαρκές απόθεμα για το προϊόν '{product.Name}'. Διαθέσιμο απόθεμα: {product.StockQuantity}.");
-                }
+                if (product.StockQuantity < itemDto.Quantity) throw new InvalidOperationException($"Ανεπαρκές απόθεμα για το προϊόν '{product.Name}'. Διαθέσιμο απόθεμα: {product.StockQuantity}.");
 
                 // ΜΕΙΩΣΗ STOCK: Αφαιρούμε τα κομμάτια από το κατάστημα
                 product.StockQuantity -= itemDto.Quantity;
@@ -61,7 +57,7 @@ namespace Eshop.Application.Services
                 {
                     ProductId = itemDto.ProductId,
                     Quantity = itemDto.Quantity,
-                    UnitPrice = product.Price // Κλειδώνουμε την τρέχουσα τιμή αγοράς
+                    UnitPrice = product.SalePrice ?? product.Price // Κλειδώνουμε την τρέχουσα τιμή αγοράς
                 };
 
                 // Υπολογισμός μερικού και συνολικού ποσού
@@ -77,6 +73,19 @@ namespace Eshop.Application.Services
             await _orderRepo.AddAsync(order);
             await _orderRepo.SaveChangesAsync();
 
+            // ΑΥΤΟΜΑΤΗ ΕΙΔΟΠΟΙΗΣΗ: Επιτυχής Καταχώρηση Παραγγελίας
+            var welcomeNotification = new Notification
+            {
+                CustomerId = customerId,
+                Title = "Η παραγγελία σας καταχωρήθηκε!",
+                Message = $"Λάβαμε την παραγγελία σας #{order.Id} συνολικής αξίας {totalAmount}€. Ευχαριστούμε για την εμπιστοσύνη σας!",
+                Type = "Order",
+                CreatedAt = DateTime.UtcNow,
+                IsRead = false
+            };
+            await _notificationRepo.AddAsync(welcomeNotification);
+            await _notificationRepo.SaveChangesAsync();
+
             // 4. Mapping στο Response DTO για να το γυρίσουμε στο frontend
             return _mapper.Map<OrderResponseDto>(order);
         }
@@ -84,21 +93,14 @@ namespace Eshop.Application.Services
         public async Task<OrderResponseDto?> GetOrderByIdAsync(int id)
         {
             var order = await _orderRepo.GetByIdAsync(id);
-            if (order == null) return null;
-            return _mapper.Map<OrderResponseDto>(order);
+            return order == null ? null : _mapper.Map<OrderResponseDto>(order);
         }
 
-        public async Task<IEnumerable<OrderResponseDto>> GetCustomerOrdersAsync(int customerId)
-        {
-            var orders = await _orderRepo.GetByCustomerIdAsync(customerId);
-            return _mapper.Map<IEnumerable<OrderResponseDto>>(orders);
-        }
+        public async Task<IEnumerable<OrderResponseDto>> GetCustomerOrdersAsync(int customerId) =>
+            _mapper.Map<IEnumerable<OrderResponseDto>>(await _orderRepo.GetByCustomerIdAsync(customerId));
 
-        public async Task<IEnumerable<OrderResponseDto>> GetAllTenantOrdersAsync()
-        {
-            var orders = await _orderRepo.GetAllOrdersAsync();
-            return _mapper.Map<IEnumerable<OrderResponseDto>>(orders);
-        }
+        public async Task<IEnumerable<OrderResponseDto>> GetAllTenantOrdersAsync() =>
+            _mapper.Map<IEnumerable<OrderResponseDto>>(await _orderRepo.GetAllOrdersAsync());
 
         public async Task<OrderResponseDto?> UpdateOrderStatusAsync(int orderId, OrderStatusUpdateDto dto)
         {
@@ -125,8 +127,40 @@ namespace Eshop.Application.Services
 
             // 3. Ενημέρωση του Status
             order.Status = newStatus;
-
             await _orderRepo.SaveChangesAsync();
+
+            // ΣΕΝΑΡΙΟ 2: ΑΥΤΟΜΑΤΗ ΕΙΔΟΠΟΙΗΣΗ - Αλλαγή Status από τον Admin
+            string notificationTitle = "Ενημέρωση Παραγγελίας";
+            string notificationMessage = $"Η κατάσταση της παραγγελίας σας #{order.Id} άλλαξε σε: {newStatus}.";
+
+            if (newStatus.Equals("Paid", StringComparison.OrdinalIgnoreCase))
+            {
+                notificationTitle = "Η πληρωμή εγκρίθηκε!";
+                notificationMessage = $"Η πληρωμή για την παραγγελία #{order.Id} ολοκληρώθηκε επιτυχώς! Ξεκινάμε τη συσκευασία.";
+            }
+            else if (newStatus.Equals("Shipped", StringComparison.OrdinalIgnoreCase))
+            {
+                notificationTitle = "Η παραγγελία σας απεστάλη!";
+                notificationMessage = $"Μεγάλα νέα! Η παραγγελία σας #{order.Id} παραδόθηκε στο courier και έρχεται προς τα εσένα.";
+            }
+            else if (newStatus.Equals("Cancelled", StringComparison.OrdinalIgnoreCase))
+            {
+                notificationTitle = "Η παραγγελία ακυρώθηκε";
+                notificationMessage = $"Η παραγγελία σας #{order.Id} έχει ακυρωθεί επιτυχώς.";
+            }
+
+            var statusNotification = new Notification
+            {
+                CustomerId = order.CustomerId,
+                Title = notificationTitle,
+                Message = notificationMessage,
+                Type = "Order",
+                CreatedAt = DateTime.UtcNow,
+                IsRead = false
+            };
+
+            await _notificationRepo.AddAsync(statusNotification);
+            await _notificationRepo.SaveChangesAsync();
 
             return _mapper.Map<OrderResponseDto>(order);
         }
@@ -184,17 +218,7 @@ namespace Eshop.Application.Services
                 RevenueByCategory = revenueByCategory
             };
         }
-
-        public async Task<OrderResponseDto?> GetOrderDetailsForAdminAsync(int orderId)
-        {
-            // 1. Ζητάμε την παραγγελία από το Repository.
-            // ΣΗΜΑΝΤΙΚΟ: Το Repo σου πρέπει να κάνει .Include(o => o.OrderItems).ThenInclude(oi => oi.Product)
-            var order = await _orderRepo.GetByIdWithItemsAsync(orderId);
-
-            if (order == null) return null;
-
-            // 2. Mapping στο DTO που περιέχει τη λίστα με τα προϊόντα
-            return _mapper.Map<OrderResponseDto>(order);
-        }
+        public async Task<OrderResponseDto?> GetOrderDetailsForAdminAsync(int orderId) =>
+            _mapper.Map<OrderResponseDto>(await _orderRepo.GetByIdWithItemsAsync(orderId));
     }
 }

@@ -40,6 +40,8 @@ namespace Eshop.API.Extensions
             services.AddScoped<IProductReviewService, ProductReviewService>();
             services.AddScoped<IWishlistRepository, WishlistRepository>();
             services.AddScoped<IWishlistService, WishlistService>();
+            services.AddScoped<INotificationRepository, NotificationRepository>();
+            services.AddScoped<INotificationService, NotificationService>();
 
             // Stripe & Payments
             // Κάνουμε register το συγκεκριμένο class για να μπορεί να το τραβήξει το Factory

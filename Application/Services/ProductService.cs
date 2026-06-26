@@ -8,29 +8,28 @@ namespace Eshop.Application.Services
 {
     public class ProductService : IProductService
     {
-        private readonly IProductRepository _productRepo; // <-- Μόνο με το Interface του Core!
+        private readonly IProductRepository _productRepo; 
         private readonly IMapper _mapper;
         private readonly IFileService _fileService;
+        private readonly INotificationRepository _notificationRepo; 
+        private readonly IWishlistRepository _wishlistRepo;
 
-        public ProductService(IProductRepository productRepo, IMapper mapper, IFileService fileService)
+        public ProductService(IProductRepository productRepo, IMapper mapper, IFileService fileService, INotificationRepository notificationRepo, IWishlistRepository wishlistRepo)
         {
             _productRepo = productRepo;
             _mapper = mapper;
             _fileService = fileService;
+            _notificationRepo = notificationRepo;
+            _wishlistRepo = wishlistRepo;
         }
 
-        public async Task<IEnumerable<ProductResponseDto>> GetAllProductsAsync()
-        {
-            var products = await _productRepo.GetAllAsync();
-            return _mapper.Map<IEnumerable<ProductResponseDto>>(products);
-        }
+        public async Task<IEnumerable<ProductResponseDto>> GetAllProductsAsync() =>
+            _mapper.Map<IEnumerable<ProductResponseDto>>(await _productRepo.GetAllAsync());
 
         public async Task<ProductResponseDto?> GetProductByIdAsync(int id)
         {
             var product = await _productRepo.GetByIdAsync(id);
-            if (product == null) return null;
-
-            return _mapper.Map<ProductResponseDto>(product);
+            return product == null ? null : _mapper.Map<ProductResponseDto>(product);
         }
 
         public async Task<ProductResponseDto> CreateProductAsync(ProductCreateDto dto)
@@ -93,17 +92,13 @@ namespace Eshop.Application.Services
         {
             // 1. Φέρνουμε το Entity από το Repository
             var product = await _productRepo.GetByIdAsync(productId);
-            if (product == null)
-                throw new KeyNotFoundException("Το προϊόν δεν βρέθηκε.");
+            if (product == null) throw new KeyNotFoundException("Το προϊόν δεν βρέθηκε.");
 
             // 2. Σώζουμε τη νέα εικόνα μέσω του FileService
             var imageUrl = await _fileService.SaveProductImageAsync(file, tenantId);
 
             // 3. Αν υπήρχε παλιά εικόνα, τη σβήνουμε από τον δίσκο για να μην γεμίζει ο server σκουπίδια
-            if (!string.IsNullOrEmpty(product.ImageUrl))
-            {
-                _fileService.DeleteImage(product.ImageUrl);
-            }
+            if (!string.IsNullOrEmpty(product.ImageUrl)) _fileService.DeleteImage(product.ImageUrl);
 
             // 4. Ενημερώνουμε το Entity και κάνουμε Save στο Repository
             product.ImageUrl = imageUrl;
@@ -117,14 +112,10 @@ namespace Eshop.Application.Services
         public async Task<ProductResponseDto> DeleteProductImageAsync(int productId)
         {
             var product = await _productRepo.GetByIdAsync(productId);
-            if (product == null)
-                throw new KeyNotFoundException("Το προϊόν δεν βρέθηκε.");
+            if (product == null) throw new KeyNotFoundException("Το προϊόν δεν βρέθηκε.");
 
             // Αν υπάρχει εικόνα, τη σβήνουμε από τον σκληρό δίσκο
-            if (!string.IsNullOrEmpty(product.ImageUrl))
-            {
-                _fileService.DeleteImage(product.ImageUrl);
-            }
+            if (!string.IsNullOrEmpty(product.ImageUrl)) _fileService.DeleteImage(product.ImageUrl);
 
             // Κάνουμε το πεδίο null στη βάση
             product.ImageUrl = null;
@@ -137,32 +128,21 @@ namespace Eshop.Application.Services
         public async Task ApplyDiscountAsync(int productId, UpdateProductDiscountDto dto)
         {
             var product = await _productRepo.GetByIdAsync(productId);
-            if (product == null)
-            {
-                throw new KeyNotFoundException("Το προϊόν δεν βρέθηκε.");
-            }
+            if (product == null) throw new KeyNotFoundException("Το προϊόν δεν βρέθηκε.");
 
+            decimal oldPrice = product.SalePrice ?? product.Price;
             decimal finalSalePrice = 0;
 
-            // 💡 Σενάριο Α: Ο Admin έβαλε Ποσοστό Έκπτωσης (π.χ. 15%)
+            // Σενάριο Α: Ο Admin έβαλε Ποσοστό Έκπτωσης (π.χ. 15%)
             if (dto.DiscountPercentage.HasValue && dto.DiscountPercentage.Value > 0)
             {
-                if (dto.DiscountPercentage.Value >= 100)
-                {
-                    throw new InvalidOperationException("Η έκπτωση δεν μπορεί να είναι 100% ή παραπάνω.");
-                }
-
-                // Υπολογισμός τιμής: Αρχική - (Αρχική * (Ποσοστό / 100))
-                var discountAmount = product.Price * ((decimal)dto.DiscountPercentage.Value / 100);
-                finalSalePrice = product.Price - discountAmount;
+                if (dto.DiscountPercentage.Value >= 100) throw new InvalidOperationException("Η έκπτωση δεν μπορεί να είναι 100% ή παραπάνω.");
+                finalSalePrice = product.Price - (product.Price * ((decimal)dto.DiscountPercentage.Value / 100));
             }
-            // 💡 Σενάριο Β: Ο Admin έβαλε κατευθείαν Τιμή Προσφοράς (π.χ. 80€)
+            // Σενάριο Β: Ο Admin έβαλε κατευθείαν Τιμή Προσφοράς (π.χ. 80€)
             else if (dto.SalePrice.HasValue && dto.SalePrice.Value > 0)
             {
-                if (dto.SalePrice.Value >= product.Price)
-                {
-                    throw new InvalidOperationException("Η τιμή προσφοράς πρέπει να είναι μικρότερη από την αρχική τιμή.");
-                }
+                if (dto.SalePrice.Value >= product.Price) throw new InvalidOperationException("Η τιμή προσφοράς πρέπει να είναι μικρότερη από την αρχική τιμή.");
                 finalSalePrice = dto.SalePrice.Value;
             }
             else
@@ -170,12 +150,36 @@ namespace Eshop.Application.Services
                 throw new InvalidOperationException("Πρέπει να καταχωρήσετε είτε Τιμή Προσφοράς είτε Ποσοστό Έκπτωσης.");
             }
 
-            // Αποθήκευση στο Entity
-            product.SalePrice = Math.Round(finalSalePrice, 2); // Στρογγυλοποίηση στα 2 δεκαδικά
+            finalSalePrice = Math.Round(finalSalePrice, 2);
+
+            // ΣΕΝΑΡΙΟ 1: Ειδοποίηση Έκπτωσης για όσους το έχουν στη Wishlist
+            if (finalSalePrice < oldPrice)
+            {
+                // 1. Φέρνουμε όλες τις εγγραφές Wishlist που περιέχουν ΑΥΤΟ το προϊόν
+                // Φέρνουμε στοχευμένα μόνο τις wishlists που έχουν αυτό το προϊόν!
+                var affectedUsers = await _wishlistRepo.GetByProductIdAsync(productId);
+
+                foreach (var item in affectedUsers)
+                {
+                    var promoNotification = new Notification
+                    {
+                        CustomerId = item.CustomerId,
+                        Title = "Πτώση Τιμής!",
+                        Message = $"Το προϊόν '{product.Name}' που έχετε στα αγαπημένα σας, έχει τώρα νέα χαμηλότερη τιμή: {finalSalePrice}€!",
+                        Type = "Promo",
+                        CreatedAt = DateTime.UtcNow,
+                        IsRead = false
+                    };
+
+                    await _notificationRepo.AddAsync(promoNotification);
+                }
+            }
+
+            product.SalePrice = finalSalePrice;
             product.SaleStartDate = dto.SaleStartDate.HasValue ? DateTime.SpecifyKind(dto.SaleStartDate.Value, DateTimeKind.Utc) : null;
             product.SaleEndDate = dto.SaleEndDate.HasValue ? DateTime.SpecifyKind(dto.SaleEndDate.Value, DateTimeKind.Utc) : null;
 
-            _productRepo.Update(product); 
+            _productRepo.Update(product);
             await _productRepo.SaveChangesAsync();
         }
     }

@@ -33,6 +33,7 @@ namespace Eshop.Infrastructure.Data
         public DbSet<Coupon> Coupons { get; set; }
         public DbSet<ProductReview> ProductReviews { get; set; }
         public DbSet<Wishlist> Wishlists { get; set; }
+        public DbSet<Notification> Notifications { get; set; }
 
         // Αυτή η μέθοδος τρέχει αυτόματα πριν το EF συνδεθεί στη βάση
         protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
@@ -158,6 +159,17 @@ namespace Eshop.Infrastructure.Data
                       .WithMany() // Ένα προϊόν μπορεί να είναι σε πολλές wishlists, αλλά δεν χρειαζόμαστε List<Wishlist> μέσα στο Product Entity
                       .HasForeignKey(w => w.ProductId)
                       .OnDelete(DeleteBehavior.Cascade);
+            });
+
+            modelBuilder.Entity<Notification>(entity =>
+            {
+                // Δημιουργία Index για γρήγορο search ανά CustomerId
+                entity.HasIndex(n => n.CustomerId);
+
+                // Περιορισμοί μεγέθους
+                entity.Property(n => n.Title).HasMaxLength(150).IsRequired();
+                entity.Property(n => n.Message).HasMaxLength(500).IsRequired();
+                entity.Property(n => n.Type).HasMaxLength(50);
             });
         }
     }
