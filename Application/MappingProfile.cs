@@ -54,6 +54,12 @@ namespace Eshop.Application.DTOs
 
             // 6. Product Reviews
             CreateMap<ProductReview, ReviewResponseDto>();
+
+            // 7. Wishlist Mappings
+            CreateMap<Wishlist, WishlistResponseDto>()
+                .ForMember(dest => dest.ProductName, opt => opt.MapFrom(src => src.Product != null ? src.Product.Name : string.Empty))
+                .ForMember(dest => dest.ProductPrice, opt => opt.MapFrom(src => src.Product != null ? src.Product.CurrentPrice : 0))
+                .ForMember(dest => dest.ProductImageUrl, opt => opt.MapFrom(src => src.Product != null ? src.Product.ImageUrl : null));
         }
     }
 }
