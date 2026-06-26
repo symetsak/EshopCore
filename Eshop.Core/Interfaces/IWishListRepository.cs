@@ -9,6 +9,9 @@ namespace Eshop.Core.Interfaces
         // Φέρνει όλα τα αντικείμενα της Wishlist για έναν συγκεκριμένο πελάτη (μαζί με τα Products)
         Task<IEnumerable<Wishlist>> GetByCustomerIdAsync(int customerId);
 
+        // Eπιστρέφει ποιες wishlists έχουν το συγκεκριμένο προϊόν
+        Task<IEnumerable<Wishlist>> GetByProductIdAsync(int productId);
+
         // Προσθέτει ένα προϊόν στα αγαπημένα
         Task AddAsync(Wishlist wishlist);
 

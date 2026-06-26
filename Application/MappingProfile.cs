@@ -60,6 +60,9 @@ namespace Eshop.Application.DTOs
                 .ForMember(dest => dest.ProductName, opt => opt.MapFrom(src => src.Product != null ? src.Product.Name : string.Empty))
                 .ForMember(dest => dest.ProductPrice, opt => opt.MapFrom(src => src.Product != null ? src.Product.CurrentPrice : 0))
                 .ForMember(dest => dest.ProductImageUrl, opt => opt.MapFrom(src => src.Product != null ? src.Product.ImageUrl : null));
+
+            // 8. Notification Mappings
+            CreateMap<Notification, NotificationResponseDto>();
         }
     }
 }
