@@ -32,6 +32,7 @@ namespace Eshop.Infrastructure.Data
         public DbSet<CartItem> CartItems { get; set; }
         public DbSet<Coupon> Coupons { get; set; }
         public DbSet<ProductReview> ProductReviews { get; set; }
+        public DbSet<Wishlist> Wishlists { get; set; }
 
         // Αυτή η μέθοδος τρέχει αυτόματα πριν το EF συνδεθεί στη βάση
         protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
@@ -144,6 +145,19 @@ namespace Eshop.Infrastructure.Data
 
                 // Περιορισμός: Το Rating πρέπει να είναι μεταξύ 1 και 5 στη βάση
                 entity.ToTable(t => t.HasCheckConstraint("CK_ProductReview_Rating", "\"Rating\" >= 1 AND \"Rating\" <= 5"));
+            });
+
+            modelBuilder.Entity<Wishlist>(entity =>
+            {
+                // 1. Ορίζουμε Unique Index στο συνδυασμό CustomerId και ProductId
+                entity.HasIndex(w => new { w.CustomerId, w.ProductId })
+                      .IsUnique();
+
+                // 2. Ρύθμιση Σχέσης: Αν διαγραφεί ένα προϊόν, σβήνεται αυτόματα και από τις Wishlists (Cascade Delete)
+                entity.HasOne(w => w.Product)
+                      .WithMany() // Ένα προϊόν μπορεί να είναι σε πολλές wishlists, αλλά δεν χρειαζόμαστε List<Wishlist> μέσα στο Product Entity
+                      .HasForeignKey(w => w.ProductId)
+                      .OnDelete(DeleteBehavior.Cascade);
             });
         }
     }
