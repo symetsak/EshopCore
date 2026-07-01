@@ -5,6 +5,7 @@
         public int Id { get; set; }
         public DateTime OrderDate { get; set; } = DateTime.UtcNow;
         public decimal TotalAmount { get; set; }
+        // Workflow States: Pending, Paid, Shipped, Completed, Cancelled
         public string Status { get; set; } = "Pending";
 
         // Foreign Key για τον Πελάτη 

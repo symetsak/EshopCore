@@ -104,6 +104,14 @@ namespace Eshop.Application.Services
 
         public async Task<OrderResponseDto?> UpdateOrderStatusAsync(int orderId, OrderStatusUpdateDto dto)
         {
+            // Λίστα με τα επιτρεπόμενα Status Παραγγελίας
+            var allowedStatuses = new[] { "Pending", "Paid", "Shipped", "Completed", "Cancelled" };
+
+            if (!allowedStatuses.Contains(dto.Status, StringComparer.OrdinalIgnoreCase))
+            {
+                throw new InvalidOperationException($"Μη έγκυρο Status παραγγελίας. Οι επιτρεπόμενες τιμές είναι: {string.Join(", ", allowedStatuses)}");
+            }
+
             // 1. Φέρνουμε την παραγγελία μαζί με τα items και τα προϊόντα τους
             var order = await _orderRepo.GetByIdAsync(orderId);
             if (order == null) return null;
