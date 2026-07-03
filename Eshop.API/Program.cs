@@ -1,16 +1,8 @@
-﻿using AutoMapper;
-using Eshop.API.Extensions;
+﻿using Eshop.API.Extensions;
 using Eshop.API.Middleware;
-using Eshop.Application.Services;
-using Eshop.Core.Interfaces;
 using Eshop.Infrastructure.Data;
-using Eshop.Infrastructure.Repositories;
-using Eshop.Infrastructure.Services;
-using Eshop.Infrastructure.Tenancy;
-using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.IdentityModel.Tokens;
-using System.Text;
+
 
 AppContext.SetSwitch("Npgsql.EnableLegacyTimestampBehavior", true);
 

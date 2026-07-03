@@ -1,4 +1,5 @@
-﻿using Eshop.Application.Services;
+﻿using Eshop.API.BackgroundServices;
+using Eshop.Application.Services;
 using Eshop.Core.Interfaces;
 using Eshop.Infrastructure.Repositories;
 using Eshop.Infrastructure.Services;
@@ -52,6 +53,9 @@ namespace Eshop.API.Extensions
             services.AddScoped<Eshop.Core.Interfaces.IPaymentStrategy, Eshop.Application.Payments.StripePaymentStrategy>();
             // Κάνουμε register το ίδιο το Factory
             services.AddScoped<Eshop.Core.Interfaces.IPaymentStrategyFactory, Eshop.Application.Payments.PaymentStrategyFactory>();
+
+            // Εγγραφή του Background Worker για αυτόματη ακύρωση απλήρωτων παραγγελιών κάρτας
+            services.AddHostedService<PaymentTimeoutWorker>();
 
             return services;
         }

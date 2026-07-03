@@ -30,7 +30,7 @@ namespace Eshop.Application.Services
             // 1. ΔΥΝΑΜΙΚΟΣ ΚΑΘΟΡΙΣΜΟΣ STATUS ΒΑΣΕΙ ΤΡΟΠΟΥ ΠΛΗΡΩΜΗΣ
             // Αν είναι Κάρτα πάει κατευθείαν "Paid", αλλιώς (Αντικαταβολή) μένει "Pending"
             string initialStatus = dto.PaymentMethod.Equals("Card", StringComparison.OrdinalIgnoreCase)
-                ? "Paid"
+                ? "PendingPaid"
                 : "Pending";
 
             // 2. Δημιουργία του βασικού αντικειμένου της Παραγγελίας
@@ -81,10 +81,10 @@ namespace Eshop.Application.Services
             await _orderRepo.SaveChangesAsync();
 
             // 5. ΔΙΑΦΟΡΟΠΟΙΗΣΗ ΜΗΝΥΜΑΤΟΣ ΥΠΟΔΟΧΗΣ ΒΑΣΕΙ STATUS
-            string welcomeTitle = initialStatus == "Paid" ? "Η πληρωμή εγκρίθηκε & η παραγγελία καταχωρήθηκε!" : "Η παραγγελία σας καταχωρήθηκε!";
-            string welcomeMessage = initialStatus == "Paid"
-                ? $"Η πληρωμή για την παραγγελία #{order.Id} (Ύψος: {totalAmount}€) ολοκληρώθηκε επιτυχώς! Ξεκινάμε άμεσα τη συσκευασία."
-                : $"Λάβαμε την παραγγελία σας #{order.Id} συνολικής αξίας {totalAmount}€ με αντικαταβολή. Ευχαριστούμε για την εμπιστοσύνη σας!";
+            string welcomeTitle = initialStatus == "PendingPayment" ? "Η παραγγελία σας είναι έτοιμη για πληρωμή!" : "Η παραγγελία σας καταχωρήθηκε!";
+            string welcomeMessage = initialStatus == "PendingPayment"
+                ? $"Η παραγγελία #{order.Id} δημιουργήθηκε. Μεταφέρεστε στο ασφαλές περιβάλλον της Stripe για την ολοκλήρωση (Ποσό: {totalAmount}€)."
+                : $"Λάβαμε την παραγγελία σας #{order.Id} συνολικής αξίας {totalAmount}€ με αντικαταβολή. Ευχαριστούμε!";
 
             // ΑΥΤΟΜΑΤΗ ΕΙΔΟΠΟΙΗΣΗ: Επιτυχής Καταχώρηση Παραγγελίας
             var welcomeNotification = new Notification
@@ -118,7 +118,7 @@ namespace Eshop.Application.Services
         public async Task<OrderResponseDto?> UpdateOrderStatusAsync(int orderId, OrderStatusUpdateDto dto)
         {
             // Λίστα με τα επιτρεπόμενα Status Παραγγελίας
-            var allowedStatuses = new[] { "Pending", "Paid", "Shipped", "Completed", "Cancelled", "Refunded", "CancellationRequested" };
+            var allowedStatuses = new[] { "Pending", "PendingPayment","Paid", "Shipped", "Completed", "Cancelled", "Refunded", "CancellationRequested" };
 
             if (!allowedStatuses.Contains(dto.Status, StringComparer.OrdinalIgnoreCase))
             {
