@@ -1,6 +1,4 @@
-﻿using System.Collections.Generic;
-using System.Threading.Tasks;
-using Eshop.Core.Entities;
+﻿using Eshop.Core.Entities;
 
 namespace Eshop.Core.Interfaces
 {
@@ -20,5 +18,8 @@ namespace Eshop.Core.Interfaces
 
         // SaveChanges
         Task<bool> SaveChangesAsync();
+
+        // ΜΕΘΟΔΟΣ ΓΙΑ ΤΟΝ ADMIN
+        Task<IEnumerable<Notification>> GetAdminNotificationsAsync();
     }
 }

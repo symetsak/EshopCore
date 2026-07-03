@@ -27,18 +27,25 @@ namespace Eshop.Application.Services
                 throw new InvalidOperationException("Το καλάθι αγορών είναι άδειο.");
             }
 
-            // 1. Δημιουργία του βασικού αντικειμένου της Παραγγελίας
+            // 1. ΔΥΝΑΜΙΚΟΣ ΚΑΘΟΡΙΣΜΟΣ STATUS ΒΑΣΕΙ ΤΡΟΠΟΥ ΠΛΗΡΩΜΗΣ
+            // Αν είναι Κάρτα πάει κατευθείαν "Paid", αλλιώς (Αντικαταβολή) μένει "Pending"
+            string initialStatus = dto.PaymentMethod.Equals("Card", StringComparison.OrdinalIgnoreCase)
+                ? "Paid"
+                : "Pending";
+
+            // 2. Δημιουργία του βασικού αντικειμένου της Παραγγελίας
             var order = new Order
             {
                 CustomerId = customerId,
                 OrderDate = DateTime.UtcNow,
-                Status = "Pending",
+                Status = initialStatus,
+                PaymentMethod = dto.PaymentMethod,
                 TotalAmount = 0 
             };
 
             decimal totalAmount = 0;
 
-            // 2. Επεξεργασία του κάθε προϊόντος στο καλάθι
+            // 3. Επεξεργασία του κάθε προϊόντος στο καλάθι
             foreach (var itemDto in dto.OrderItems)
             {
                 // Τραβάμε το προϊόν από τη βάση του Tenant
@@ -67,18 +74,24 @@ namespace Eshop.Application.Services
                 order.OrderItems.Add(orderItem);
             }
 
-            // 3. Ανάθεση του τελικού ποσού και αποθήκευση στην PostgreSQL
-            order.TotalAmount = totalAmount;
+            // 4. Ανάθεση του τελικού ποσού και αποθήκευση στην PostgreSQL
+            order.TotalAmount = dto.OverrideTotalAmount ?? totalAmount;
 
             await _orderRepo.AddAsync(order);
             await _orderRepo.SaveChangesAsync();
+
+            // 5. ΔΙΑΦΟΡΟΠΟΙΗΣΗ ΜΗΝΥΜΑΤΟΣ ΥΠΟΔΟΧΗΣ ΒΑΣΕΙ STATUS
+            string welcomeTitle = initialStatus == "Paid" ? "Η πληρωμή εγκρίθηκε & η παραγγελία καταχωρήθηκε!" : "Η παραγγελία σας καταχωρήθηκε!";
+            string welcomeMessage = initialStatus == "Paid"
+                ? $"Η πληρωμή για την παραγγελία #{order.Id} (Ύψος: {totalAmount}€) ολοκληρώθηκε επιτυχώς! Ξεκινάμε άμεσα τη συσκευασία."
+                : $"Λάβαμε την παραγγελία σας #{order.Id} συνολικής αξίας {totalAmount}€ με αντικαταβολή. Ευχαριστούμε για την εμπιστοσύνη σας!";
 
             // ΑΥΤΟΜΑΤΗ ΕΙΔΟΠΟΙΗΣΗ: Επιτυχής Καταχώρηση Παραγγελίας
             var welcomeNotification = new Notification
             {
                 CustomerId = customerId,
-                Title = "Η παραγγελία σας καταχωρήθηκε!",
-                Message = $"Λάβαμε την παραγγελία σας #{order.Id} συνολικής αξίας {totalAmount}€. Ευχαριστούμε για την εμπιστοσύνη σας!",
+                Title = welcomeTitle,
+                Message = welcomeMessage,
                 Type = "Order",
                 CreatedAt = DateTime.UtcNow,
                 IsRead = false
@@ -86,7 +99,7 @@ namespace Eshop.Application.Services
             await _notificationRepo.AddAsync(welcomeNotification);
             await _notificationRepo.SaveChangesAsync();
 
-            // 4. Mapping στο Response DTO για να το γυρίσουμε στο frontend
+            // 6. Mapping στο Response DTO για να το γυρίσουμε στο frontend
             return _mapper.Map<OrderResponseDto>(order);
         }
 
@@ -105,7 +118,7 @@ namespace Eshop.Application.Services
         public async Task<OrderResponseDto?> UpdateOrderStatusAsync(int orderId, OrderStatusUpdateDto dto)
         {
             // Λίστα με τα επιτρεπόμενα Status Παραγγελίας
-            var allowedStatuses = new[] { "Pending", "Paid", "Shipped", "Completed", "Cancelled" };
+            var allowedStatuses = new[] { "Pending", "Paid", "Shipped", "Completed", "Cancelled", "Refunded", "CancellationRequested" };
 
             if (!allowedStatuses.Contains(dto.Status, StringComparer.OrdinalIgnoreCase))
             {
@@ -119,29 +132,67 @@ namespace Eshop.Application.Services
             string oldStatus = order.Status;
             string newStatus = dto.Status;
 
-            // 2. Business Logic: Αν η παραγγελία ακυρώνεται, επιστρέφουμε το Stock!
-            if (newStatus.Equals("Cancelled", StringComparison.OrdinalIgnoreCase) &&
-                !oldStatus.Equals("Cancelled", StringComparison.OrdinalIgnoreCase))
+            // Κανόνας 1:Περιορισμός ακύρωσης μόνο από Pending ή Paid
+            if (newStatus.Equals("Cancelled", StringComparison.OrdinalIgnoreCase))
             {
+                if (oldStatus.Equals("Shipped", StringComparison.OrdinalIgnoreCase) || oldStatus.Equals("Completed", StringComparison.OrdinalIgnoreCase))
+                {
+                    throw new InvalidOperationException("Δεν μπορείτε να ακυρώσετε μια παραγγελία που έχει ήδη αποσταλεί ή ολοκληρωθεί. Ο πελάτης πρέπει να ξεκινήσει διαδικασία επιστροφής (Return) αφού την παραλάβει.");
+                }
+            }
+
+            //Κανόνας 2: Μετάβαση σε Refunded μόνο αν ήταν Cancelled
+            if (newStatus.Equals("Refunded", StringComparison.OrdinalIgnoreCase) && !oldStatus.Equals("Cancelled", StringComparison.OrdinalIgnoreCase))
+            {
+                    throw new InvalidOperationException("Μια παραγγελία μπορεί να πάει σε κατάσταση 'Refunded' μόνο αν έχει ήδη ακυρωθεί ('Cancelled').");       
+            }
+
+            // Κανόνας 3: Διαχείρηση Αποθέματος και συμπεριφοράς πληρωμών
+            string notificationTitle = "Ενημέρωση Παραγγελίας";
+            string notificationMessage = $"Η κατάσταση της παραγγελίας σας #{order.Id} άλλαξε σε: {newStatus}.";
+
+            if (newStatus.Equals("Cancelled", StringComparison.OrdinalIgnoreCase) && !oldStatus.Equals("Cancelled", StringComparison.OrdinalIgnoreCase))
+            {
+                // Το stock επιστρέφει ΠΑΝΤΑ (είτε Card είτε CashOnDelivery)
                 foreach (var item in order.OrderItems)
                 {
                     if (item.Product != null)
                     {
-                        item.Product.StockQuantity += item.Quantity; // Επιστροφή στοκ
+                        item.Product.StockQuantity += item.Quantity;
                         _productRepo.Update(item.Product);
                     }
                 }
+
+                // Διαφοροποίηση μηνύματος βάσει τρόπου πληρωμής
+                if (order.PaymentMethod.Equals("Card", StringComparison.OrdinalIgnoreCase))
+                {
+                    notificationTitle = "Το αίτημα ακύρωσης εγκρίθηκε!";
+                    notificationMessage = $"Η παραγγελία σας #{order.Id} ακυρώθηκε. Τα χρήματά σας θα επιστραφούν εντός 14 ημερών.";
+                }
+                else
+                {
+                    notificationTitle = "Το αίτημα ακύρωσης εγκρίθηκε!";
+                    notificationMessage = $"Η παραγγελία σας #{order.Id} ακυρώθηκε επιτυχώς.";
+                }
             }
+            else if (newStatus.Equals("CancellationRequested", StringComparison.OrdinalIgnoreCase))
+            {
+                notificationTitle = "Λάβαμε το αίτημα ακύρωσης";
+                notificationMessage = $"Το αίτημά σας για την ακύρωση της παραγγελίας #{order.Id} εξετάζεται από το κατάστημα. Θα ενημερωθείτε σύντομα.";
 
-            // 3. Ενημέρωση του Status
-            order.Status = newStatus;
-            await _orderRepo.SaveChangesAsync();
-
-            // ΣΕΝΑΡΙΟ 2: ΑΥΤΟΜΑΤΗ ΕΙΔΟΠΟΙΗΣΗ - Αλλαγή Status από τον Admin
-            string notificationTitle = "Ενημέρωση Παραγγελίας";
-            string notificationMessage = $"Η κατάσταση της παραγγελίας σας #{order.Id} άλλαξε σε: {newStatus}.";
-
-            if (newStatus.Equals("Paid", StringComparison.OrdinalIgnoreCase))
+                // Δημιουργία και αποθήκευση της ειδοποίησης του Admin
+                var adminNotification = new Notification
+                {
+                    CustomerId = null, // Πηγαίνει στον Admin 
+                    Title = "Νέο Αίτημα Ακύρωσης Παραγγελίας!",
+                    Message = $"Ο πελάτης ζήτησε ακύρωση για την παραγγελία #{order.Id} (Τρόπος Πληρωμής: {order.PaymentMethod}). Παρακαλούμε ελέγξτε την αποθήκη.",
+                    Type = "AdminAlert",
+                    CreatedAt = DateTime.UtcNow,
+                    IsRead = false
+                };
+                await _notificationRepo.AddAsync(adminNotification);
+            }
+            else if (newStatus.Equals("Paid", StringComparison.OrdinalIgnoreCase))
             {
                 notificationTitle = "Η πληρωμή εγκρίθηκε!";
                 notificationMessage = $"Η πληρωμή για την παραγγελία #{order.Id} ολοκληρώθηκε επιτυχώς! Ξεκινάμε τη συσκευασία.";
@@ -149,14 +200,19 @@ namespace Eshop.Application.Services
             else if (newStatus.Equals("Shipped", StringComparison.OrdinalIgnoreCase))
             {
                 notificationTitle = "Η παραγγελία σας απεστάλη!";
-                notificationMessage = $"Μεγάλα νέα! Η παραγγελία σας #{order.Id} παραδόθηκε στο courier και έρχεται προς τα εσένα.";
+                notificationMessage = $"Μεγάλα νέα! Η παραγγελία σας #{order.Id} παραδόθηκε στο courier.";
             }
-            else if (newStatus.Equals("Cancelled", StringComparison.OrdinalIgnoreCase))
+            else if (newStatus.Equals("Refunded", StringComparison.OrdinalIgnoreCase))
             {
-                notificationTitle = "Η παραγγελία ακυρώθηκε";
-                notificationMessage = $"Η παραγγελία σας #{order.Id} έχει ακυρωθεί επιτυχώς.";
+                notificationTitle = "Η επιστροφή χρημάτων ολοκληρώθηκε!";
+                notificationMessage = $"Τα χρήματα για την ακυρωμένη παραγγελία #{order.Id} έχουν επιστραφεί επιτυχώς στον λογαριασμό σας.";
             }
 
+            // 3. Ενημέρωση του Status
+            order.Status = newStatus;
+            await _orderRepo.SaveChangesAsync();
+
+            // 4. Αποστολή ειδοποίησης
             var statusNotification = new Notification
             {
                 CustomerId = order.CustomerId,

@@ -14,5 +14,8 @@
 
         // Σχέση: Μια παραγγελία έχει πολλά προϊόντα (μέσω του OrderItem)
         public ICollection<OrderItem> OrderItems { get; set; } = new List<OrderItem>();
+
+        // Τρόπος Πληρωμής: "CashOnDelivery" ή "Card"
+        public string PaymentMethod { get; set; } = "CashOnDelivery";
     }
 }

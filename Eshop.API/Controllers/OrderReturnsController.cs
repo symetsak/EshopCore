@@ -1,11 +1,10 @@
 ﻿using Eshop.Application.DTOs;
 using Eshop.Application.Services;
+using Eshop.Core.DTOs;
+using Eshop.Core.Interfaces;
 using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
-using System;
-using System.Collections.Generic;
-using System.Threading.Tasks;
+
 
 namespace Eshop.API.Controllers
 {
@@ -14,10 +13,12 @@ namespace Eshop.API.Controllers
     public class OrderReturnsController : ControllerBase
     {
         private readonly IOrderReturnService _returnService;
+        private readonly IOrderService _orderService;
 
-        public OrderReturnsController(IOrderReturnService returnService)
+        public OrderReturnsController(IOrderReturnService returnService, IOrderService orderService)
         {
             _returnService = returnService;
+            _orderService = orderService;
         }
 
         // ENDPOINTS ΓΙΑ ΤΟΝ ΠΕΛΑΤΗ (Customer)
@@ -51,6 +52,37 @@ namespace Eshop.API.Controllers
             }
 
             var result = await _returnService.GetCustomerReturnsAsync(customerId);
+            return Ok(result);
+        }
+
+
+        // Υποβολή αιτήματος ακύρωσης από τον πελάτη (Μόνο για παραγγελίες Pending ή Paid).   
+        [HttpPut("api/returns/orders/{orderId}/request-cancel")]
+        public async Task<IActionResult> RequestOrderCancellation(int orderId)
+        {
+            var customerIdClaim = User.FindFirst("CustomerId")?.Value;
+            if (string.IsNullOrEmpty(customerIdClaim) || !int.TryParse(customerIdClaim, out int customerId))
+            {
+                return Unauthorized("Μη έγκυρος χρήστης.");
+            }
+
+            // 1. Φέρνουμε την παραγγελία για να δούμε αν υπάρχει και αν ανήκει στον πελάτη
+            var orderDto = await _orderService.GetOrderByIdAsync(orderId);
+            if (orderDto == null || orderDto.CustomerId != customerId)
+            {
+                return NotFound("Η παραγγελία δεν βρέθηκε ή δεν σας ανήκει.");
+            }
+
+            // 2. Έλεγχος: Ο πελάτης μπορεί να ζητήσει ακύρωση ΜΟΝΟ αν είναι Pending ή Paid
+            if (!orderDto.Status.Equals("Pending", StringComparison.OrdinalIgnoreCase) && !orderDto.Status.Equals("Paid", StringComparison.OrdinalIgnoreCase))
+            {
+                return BadRequest(new { message = $"Δεν μπορείτε να ακυρώσετε την παραγγελία, καθώς βρίσκεται ήδη σε κατάσταση '{orderDto.Status}' (έχει δρομολογηθεί). Παρακαλούμε περιμένετε να παραλάβετε και ξεκινήστε διαδικασία επιστροφής." });
+            }
+
+            // 3. Θέτουμε την κατάσταση σε 'CancellationRequested' μέσω του Service
+            var updateDto = new OrderStatusUpdateDto { Status = "CancellationRequested" };
+            var result = await _orderService.UpdateOrderStatusAsync(orderId, updateDto);
+
             return Ok(result);
         }
 

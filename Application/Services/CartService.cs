@@ -1,8 +1,10 @@
 ﻿using Eshop.Core.DTOs;
 using Eshop.Core.Entities;
 using Eshop.Core.Interfaces;
+using Stripe;
 using System.Linq;
 using System.Threading.Tasks;
+using static System.Runtime.InteropServices.JavaScript.JSType;
 
 namespace Eshop.Application.Services
 {
@@ -12,13 +14,15 @@ namespace Eshop.Application.Services
         private readonly IOrderRepository _orderRepo;
         private readonly ICouponService _couponService;
         private readonly IPaymentStrategyFactory _paymentFactory;
+        private readonly IOrderService _orderService;
 
-        public CartService(ICartRepository cartRepo, IOrderRepository orderRepo, ICouponService couponService, IPaymentStrategyFactory paymentFactory)
+        public CartService(ICartRepository cartRepo, IOrderRepository orderRepo, ICouponService couponService, IPaymentStrategyFactory paymentFactory, IOrderService orderService)
         {
             _cartRepo = cartRepo;
             _orderRepo = orderRepo;
             _couponService = couponService;
             _paymentFactory = paymentFactory;
+            _orderService = orderService;
         }
 
         public async Task<CartResponseDto> GetCartByCustomerAsync(int customerId)
@@ -92,7 +96,7 @@ namespace Eshop.Application.Services
             await _cartRepo.SaveChangesAsync();
         }
 
-        public async Task<CheckoutResultDto> CheckoutAsync(int customerId, string paymentProvider, string tenantId)
+        public async Task<CheckoutResultDto> CheckoutAsync(int customerId, string paymentProvider, string tenantId, string paymentMethod)
         {
             // 1. Φέρνουμε το καλάθι του πελάτη με τα items και τα προϊόντα
             var cart = await _cartRepo.GetByCustomerIdAsync(customerId);
@@ -103,7 +107,6 @@ namespace Eshop.Application.Services
 
             // 2. Υπολογίζουμε το συνολικό ποσό (εδώ θα μπουν και τα κουπόνια αύριο!)
             decimal subTotal = cart.CartItems.Sum(ci => ci.Product.CurrentPrice * ci.Quantity);
-
             decimal discount = 0; 
 
             if (!string.IsNullOrEmpty(cart.AppliedCouponCode))
@@ -112,46 +115,50 @@ namespace Eshop.Application.Services
             }
             decimal total = subTotal - discount;
 
-            // 3. Δημιουργούμε το Order Entity
-            var order = new Order
+            // 3. Προετοιμασία του DTO για το OrderService
+            var orderCreateDto = new OrderCreateDto
             {
-                CustomerId = customerId,
-                OrderDate = DateTime.UtcNow,
-                TotalAmount = total,
-                Status = "Pending", 
-
-                // Μετατρέπουμε τα CartItems σε OrderItems
-                OrderItems = cart.CartItems.Select(ci => new OrderItem
+                PaymentMethod = paymentMethod,
+                OverrideTotalAmount = total, // Περνάμε το τελικό ποσό (με την έκπτωση) στο OrderService
+                OrderItems = cart.CartItems.Select(ci => new OrderItemCreateDto
                 {
                     ProductId = ci.ProductId,
-                    Quantity = ci.Quantity,
-                    UnitPrice = ci.Product.CurrentPrice // Κλειδώνουμε την τιμή αγοράς!
+                    Quantity = ci.Quantity
                 }).ToList()
             };
 
-            // 4. Αποθηκεύουμε την παραγγελία μέσω του OrderRepository
-            await _orderRepo.AddAsync(order); // Αν το Repo σου έχει AddAsync
-            await _orderRepo.SaveChangesAsync();
+            // 4. ΟΛΗ Η ΔΟΥΛΕΙΑ (Stock, Statuses, Base Order Entity, Save, Notifications) γίνεται πλέον ΕΔΩ!
+            var createdOrderDto = await _orderService.CreateOrderAsync(customerId, orderCreateDto);
 
-            // 5. ΠΡΩΤΑ μηδενίζουμε το κουπόνι πάνω στο cart object
+            // 5. Καθαρισμός κουπονιού και καλαθιού
             cart.AppliedCouponCode = null;
-
-            // 6. Σώζουμε την αλλαγή του κουπονιού στη βάση
             await _cartRepo.SaveChangesAsync();
-
-            // 7. Μετά αδειάζουμε τα προϊόντα του καλαθιού
             await _cartRepo.ClearCartAsync(customerId);
             await _cartRepo.SaveChangesAsync();
 
-            var paymentStrategy = _paymentFactory.GetPaymentStrategy(paymentProvider);
+            // 6. Financial Logic για το Stripe Link
+            string paymentUrl = string.Empty;
 
-            // 8. Παράγουμε το URL (Η Stripe θα πάρει το order entity και το tenantId)
-            string paymentUrl = await paymentStrategy.CreateCheckoutSessionAsync(order, tenantId);
+            if (paymentMethod.Equals("Card", StringComparison.OrdinalIgnoreCase))
+            {
+                if (string.IsNullOrEmpty(paymentProvider))
+                {
+                    throw new InvalidOperationException("Για πληρωμή με κάρτα, απαιτείται η επιλογή παρόχου πληρωμών (π.χ. Stripe).");
+                }
 
-            // 9. Επιστρέφουμε το συνδυασμένο αποτέλεσμα
+                // Επειδή η στρατηγική του Stripe (paymentStrategy) ενδέχεται να ζητάει το Order Entity από τη βάση, το τραβάμε μέσω του Repo
+                var orderEntity = await _orderRepo.GetByIdAsync(createdOrderDto.Id);
+                if (orderEntity != null)
+                {
+                    var paymentStrategy = _paymentFactory.GetPaymentStrategy(paymentProvider);
+                    paymentUrl = await paymentStrategy.CreateCheckoutSessionAsync(orderEntity, tenantId);
+                }
+            }
+
+            // 7. Επιστροφή αποτελέσματος
             return new CheckoutResultDto
             {
-                OrderId = order.Id,
+                OrderId = createdOrderDto.Id,
                 Url = paymentUrl
             };
         }

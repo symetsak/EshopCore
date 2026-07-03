@@ -57,6 +57,21 @@ namespace Eshop.Application.Services
                 throw new InvalidOperationException("Έχει ήδη υποβληθεί αίτημα επιστροφής για αυτή την παραγγελία.");
             }
 
+            // Κανόνας: Υποχρεωτικό το IBAN μόνο αν η παραγγελία ήταν με αντικαταβολή
+            if (order.PaymentMethod.Equals("CashOnDelivery", StringComparison.OrdinalIgnoreCase))
+            {
+                if (string.IsNullOrWhiteSpace(dto.Iban))
+                {
+                    throw new InvalidOperationException("Η παραγγελία σας εξοφλήθηκε με αντικαταβολή. Παρακαλούμε συμπληρώστε υποχρεωτικά το IBAN σας για να μπορέσουμε να προχωρήσουμε στην επιστροφή των χρημάτων σας.");
+                }
+
+                // Προαιρετικό: Ένας γρήγορος έλεγχος για το ελάχιστο μήκος του Ελληνικού IBAN (GR + 25 ψηφία = 27)
+                if (dto.Iban.Length < 20)
+                {
+                    throw new InvalidOperationException("Ο αριθμός IBAN που καταχωρήσατε δεν φαίνεται έγκυρος. Παρακαλούμε ελέγξτε τον ξανά.");
+                }
+            }
+
             var orderReturn = new OrderReturn
             {
                 OrderId = dto.OrderId,
@@ -64,6 +79,7 @@ namespace Eshop.Application.Services
                 Title = dto.Title,
                 Reason = dto.Reason,
                 ReturnType = dto.ReturnType,
+                Iban = order.PaymentMethod.Equals("CashOnDelivery", StringComparison.OrdinalIgnoreCase) ? dto.Iban?.Trim() : null, // Κρατάμε το IBAN μόνο αν είναι αντικαταβολή
                 Status = "Requested", // Αρχικό στάδιο workflow
                 CreatedAt = DateTime.UtcNow
             };
@@ -128,7 +144,10 @@ namespace Eshop.Application.Services
             {
                 CustomerId = customerId,
                 Title = "Λάβαμε το αίτημά σας για επιστροφή!",
-                Message = $"Το αίτημα επιστροφής για την παραγγελία #{order.Id} καταχωρήθηκε επιτυχώς και βρίσκεται υπό εξέταση.",
+                Message = $"Το αίτημα επιστροφής για την παραγγελία #{order.Id} καταχωρήθηκε επιτυχώς. " +
+                  (order.PaymentMethod.Equals("CashOnDelivery", StringComparison.OrdinalIgnoreCase)
+                      ? "Το ποσό θα κατατεθεί στο IBAN που μας δηλώσατε μόλις ολοκληρωθεί ο έλεγχος."
+                      : "Το ποσό θα επιστραφεί στην κάρτα σας μόλις ολοκληρωθεί ο έλεγχος."),
                 Type = "Info",
                 CreatedAt = DateTime.UtcNow
             };

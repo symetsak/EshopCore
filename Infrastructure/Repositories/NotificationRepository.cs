@@ -1,7 +1,4 @@
-﻿using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
-using Eshop.Core.Entities;
+﻿using Eshop.Core.Entities;
 using Eshop.Core.Interfaces;
 using Eshop.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
@@ -50,6 +47,15 @@ namespace Eshop.Infrastructure.Repositories
         public async Task<bool> SaveChangesAsync()
         {
             return await _context.SaveChangesAsync() > 0;
+        }
+
+        // Για τον Admin: Λήψη όλων των ειδοποιήσεων
+        public async Task<IEnumerable<Notification>> GetAdminNotificationsAsync()
+        {
+            return await _context.Notifications
+                .Where(n => n.CustomerId == null) // Φίλτρο: Μόνο του Admin
+                .OrderByDescending(n => n.CreatedAt) // Πρώτα οι πιο πρόσφατες
+                .ToListAsync();
         }
     }
 }

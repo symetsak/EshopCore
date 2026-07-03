@@ -9,12 +9,12 @@ namespace Eshop.Application.DTOs
         public int OrderId { get; set; }
         public string Title { get; set; } = null!;
         public string Reason { get; set; } = null!;
-
         // "Total" (Ολική) ή "Partial" (Μερική)
         public string ReturnType { get; set; } = "Total";
-
         // Αν είναι "Partial", εδώ θα έρχονται τα επιλεγμένα προϊόντα με τα checkboxes
         public List<OrderReturnItemRequestDto> ReturnItems { get; set; } = new();
+        // Υποχρεωτικό στο business logic ΜΟΝΟ αν η παραγγελία ήταν με αντικαταβολή
+        public string? Iban { get; set; }
     }
 
     // Sub-DTO για τα προϊόντα που επιλέγονται στη μερική επιστροφή
@@ -38,6 +38,7 @@ namespace Eshop.Application.DTOs
         public DateTime CreatedAt { get; set; }
         public DateTime? UpdatedAt { get; set; }
         public List<OrderReturnItemResponseDto> ReturnItems { get; set; } = new();
+        public string? Iban { get; set; }
     }
 
     // Sub-DTO για την εμφάνιση των επιστραμμένων προϊόντων στη λίστα

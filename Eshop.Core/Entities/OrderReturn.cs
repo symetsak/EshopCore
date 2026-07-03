@@ -26,5 +26,8 @@ namespace Eshop.Core.Entities
 
         // Οι γραμμές της επιστροφής (ποια προϊόντα επιστρέφονται)
         public ICollection<OrderReturnItem> ReturnItems { get; set; } = new List<OrderReturnItem>();
+
+        // Το IBAN του πελάτη (υποχρεωτικό ΜΟΝΟ αν η παραγγελία ήταν με CashOnDelivery)
+        public string? Iban { get; set; }
     }
 }

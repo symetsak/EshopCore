@@ -1,6 +1,4 @@
-﻿using System;
-
-namespace Eshop.Core.Entities
+﻿namespace Eshop.Core.Entities
 {
     public class Notification
     {
@@ -8,7 +6,7 @@ namespace Eshop.Core.Entities
         public int Id { get; set; }
 
         // Σε ποιον πελάτη απευθύνεται
-        public int CustomerId { get; set; }
+        public int? CustomerId { get; set; }
 
         // Ο τίτλος και το κυρίως μήνυμα της ειδοποίησης
         public string Title { get; set; } = null!;

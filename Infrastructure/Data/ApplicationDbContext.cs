@@ -95,12 +95,20 @@ namespace Eshop.Infrastructure.Data
                 .HasForeignKey(p => p.CategoryId)
                 .OnDelete(DeleteBehavior.Restrict);
 
-            // 2. Σχέση Customer -> Orders (1-to-Many)
-            modelBuilder.Entity<Order>()
-                .HasOne(o => o.Customer)
-                .WithMany(c => c.Orders)
-                .HasForeignKey(o => o.CustomerId)
-                .OnDelete(DeleteBehavior.Restrict);
+            // 2. Σχέση Customer -> Orders (1-to-Many) & Ρυθμίσεις Παραγγελίας
+            modelBuilder.Entity<Order>(entity =>
+            {
+                entity.HasOne(o => o.Customer)
+                      .WithMany(c => c.Orders)
+                      .HasForeignKey(o => o.CustomerId)
+                      .OnDelete(DeleteBehavior.Restrict);
+
+                // Ρύθμιση για τον Τρόπο Πληρωμής
+                entity.Property(o => o.PaymentMethod)
+                      .HasMaxLength(30)
+                      .HasDefaultValue("CashOnDelivery")
+                      .IsRequired();
+            });
 
             // 3. Σχέσεις για τον πίνακα-γέφυρα OrderItem
             modelBuilder.Entity<OrderItem>()
@@ -193,6 +201,8 @@ namespace Eshop.Infrastructure.Data
                       .WithMany()
                       .HasForeignKey(r => r.OrderId)
                       .OnDelete(DeleteBehavior.Restrict); // Αν διαγραφεί μια παραγγελία (σπάνιο), να μην σβήσει αυτόματα η επιστροφή για λογιστικούς λόγους
+
+                entity.Property(r => r.Iban).HasMaxLength(34).IsRequired(false); // Nullable στη βάση
             });
 
             modelBuilder.Entity<OrderReturnItem>(entity =>
