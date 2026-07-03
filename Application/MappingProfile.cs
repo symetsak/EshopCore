@@ -63,6 +63,11 @@ namespace Eshop.Application.DTOs
 
             // 8. Notification Mappings
             CreateMap<Notification, NotificationResponseDto>();
+
+            // 9. Order Return Mappings
+            CreateMap<OrderReturn, OrderReturnResponseDto>();
+            CreateMap<OrderReturnItem, OrderReturnItemResponseDto>()
+                .ForMember(dest => dest.ProductName, opt => opt.MapFrom(src => src.Product.Name));
         }
     }
 }

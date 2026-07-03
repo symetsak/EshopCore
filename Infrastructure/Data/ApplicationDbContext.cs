@@ -34,6 +34,8 @@ namespace Eshop.Infrastructure.Data
         public DbSet<ProductReview> ProductReviews { get; set; }
         public DbSet<Wishlist> Wishlists { get; set; }
         public DbSet<Notification> Notifications { get; set; }
+        public DbSet<OrderReturn> OrderReturns { get; set; }
+        public DbSet<OrderReturnItem> OrderReturnItems { get; set; }
 
         // Αυτή η μέθοδος τρέχει αυτόματα πριν το EF συνδεθεί στη βάση
         protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
@@ -93,12 +95,20 @@ namespace Eshop.Infrastructure.Data
                 .HasForeignKey(p => p.CategoryId)
                 .OnDelete(DeleteBehavior.Restrict);
 
-            // 2. Σχέση Customer -> Orders (1-to-Many)
-            modelBuilder.Entity<Order>()
-                .HasOne(o => o.Customer)
-                .WithMany(c => c.Orders)
-                .HasForeignKey(o => o.CustomerId)
-                .OnDelete(DeleteBehavior.Restrict);
+            // 2. Σχέση Customer -> Orders (1-to-Many) & Ρυθμίσεις Παραγγελίας
+            modelBuilder.Entity<Order>(entity =>
+            {
+                entity.HasOne(o => o.Customer)
+                      .WithMany(c => c.Orders)
+                      .HasForeignKey(o => o.CustomerId)
+                      .OnDelete(DeleteBehavior.Restrict);
+
+                // Ρύθμιση για τον Τρόπο Πληρωμής
+                entity.Property(o => o.PaymentMethod)
+                      .HasMaxLength(30)
+                      .HasDefaultValue("CashOnDelivery")
+                      .IsRequired();
+            });
 
             // 3. Σχέσεις για τον πίνακα-γέφυρα OrderItem
             modelBuilder.Entity<OrderItem>()
@@ -170,6 +180,49 @@ namespace Eshop.Infrastructure.Data
                 entity.Property(n => n.Title).HasMaxLength(150).IsRequired();
                 entity.Property(n => n.Message).HasMaxLength(500).IsRequired();
                 entity.Property(n => n.Type).HasMaxLength(50);
+            });
+
+            modelBuilder.Entity<OrderReturn>(entity =>
+            {
+                // 1. Ορισμός Primary Key
+                entity.HasKey(r => r.Id);
+
+                // 2. Περιορισμοί στα κείμενα 
+                entity.Property(r => r.Title).HasMaxLength(150).IsRequired();
+                entity.Property(r => r.Reason).HasMaxLength(1000).IsRequired();
+                entity.Property(r => r.ReturnType).HasMaxLength(20).IsRequired(); // Total ή Partial
+                entity.Property(r => r.Status).HasMaxLength(30).IsRequired();     // Requested, Approved κλπ
+
+                // 3. Σωστό mapping για το decimal 
+                entity.Property(r => r.RefundAmount).HasColumnType("decimal(18,2)");
+
+                // 4. Σχέση: Μια Παραγγελία μπορεί να έχει πολλές επιστροφές (αν γίνουν τμηματικά)
+                entity.HasOne(r => r.Order)
+                      .WithMany()
+                      .HasForeignKey(r => r.OrderId)
+                      .OnDelete(DeleteBehavior.Restrict); // Αν διαγραφεί μια παραγγελία (σπάνιο), να μην σβήσει αυτόματα η επιστροφή για λογιστικούς λόγους
+
+                entity.Property(r => r.Iban).HasMaxLength(34).IsRequired(false); // Nullable στη βάση
+            });
+
+            modelBuilder.Entity<OrderReturnItem>(entity =>
+            {
+                entity.HasKey(ri => ri.Id);
+
+                // Σωστό mapping για την τιμή μονάδας
+                entity.Property(ri => ri.UnitPrice).HasColumnType("decimal(18,2)");
+
+                // Σχέση: Αν σβηστεί το "κεφάλι" της επιστροφής (OrderReturn), σβήνονται αυτόματα και οι γραμμές της (Items)
+                entity.HasOne(ri => ri.OrderReturn)
+                      .WithMany(r => r.ReturnItems)
+                      .HasForeignKey(ri => ri.OrderReturnId)
+                      .OnDelete(DeleteBehavior.Cascade); // Εδώ θέλουμε Cascade!
+
+                // Σύνδεση με το Προϊόν
+                entity.HasOne(ri => ri.Product)
+                      .WithMany()
+                      .HasForeignKey(ri => ri.ProductId)
+                      .OnDelete(DeleteBehavior.Restrict);
             });
         }
     }

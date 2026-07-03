@@ -4,6 +4,11 @@
     public class OrderCreateDto
     {
         public List<OrderItemCreateDto> OrderItems { get; set; } = new List<OrderItemCreateDto>();
+
+        public decimal? OverrideTotalAmount { get; set; }
+
+        // "CashOnDelivery" ή "Card"
+        public string PaymentMethod { get; set; } = "CashOnDelivery";
     }
 
     // Το κάθε προϊόν μέσα στο καλάθι
@@ -22,6 +27,7 @@
         public string Status { get; set; } = string.Empty;
         public int CustomerId { get; set; }
         public List<OrderItemResponseDto> OrderItems { get; set; } = new List<OrderItemResponseDto>();
+        public string PaymentMethod { get; set; } = null!;
     }
 
     // Οι λεπτομέρειες των προϊόντων στην απάντηση

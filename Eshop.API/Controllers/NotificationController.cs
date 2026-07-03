@@ -1,11 +1,8 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Threading.Tasks;
-using Eshop.Application.DTOs;
-using Eshop.Application.Services;
+﻿using Eshop.Application.Services;
+using Eshop.Core.Interfaces;
 using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+
 
 namespace Eshop.API.Controllers
 {
@@ -15,11 +12,13 @@ namespace Eshop.API.Controllers
     public class NotificationsController : ControllerBase
     {
         private readonly INotificationService _notificationService;
+        private readonly INotificationRepository _notificationRepo;
 
         // Inject το Service των ειδοποιήσεων
-        public NotificationsController(INotificationService notificationService)
+        public NotificationsController(INotificationService notificationService, INotificationRepository notificationRepo)
         {
             _notificationService = notificationService;
+            _notificationRepo = notificationRepo;
         }
 
         [HttpGet]
@@ -34,6 +33,14 @@ namespace Eshop.API.Controllers
 
             var result = await _notificationService.GetCustomerNotificationsAsync(customerId);
             return Ok(result);
+        }
+
+        [HttpGet("adminNotifications")]
+        [Authorize(Roles = "Administrator")]
+        public async Task<IActionResult> GetAdminNotifications()
+        {
+            var notifications = await _notificationRepo.GetAdminNotificationsAsync();
+            return Ok(notifications);
         }
 
         [HttpGet("unread-count")]

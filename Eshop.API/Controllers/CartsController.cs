@@ -83,7 +83,7 @@ namespace Eshop.API.Controllers
 
         // 5. POST: api/carts/checkout -> Ολοκλήρωση αγοράς & Παραγωγή Stripe Link
         [HttpPost("checkout")]
-        public async Task<IActionResult> Checkout([FromQuery] string paymentProvider = "Stripe")
+        public async Task<IActionResult> Checkout([FromQuery] string paymentMethod = "CashOnDelivery", [FromQuery] string? paymentProvider = null)
         {
             var customerId = GetCurrentCustomerId();
             if (customerId == 0) return Unauthorized(new { message = "Μη έγκυρος χρήστης." });
@@ -97,8 +97,19 @@ namespace Eshop.API.Controllers
 
             try
             {
-                // Καλούμε το Service περνώντας και τα 3 απαραίτητα στοιχεία
-                var checkoutResult = await _cartService.CheckoutAsync(customerId, paymentProvider, tenantId);
+                // Περνάμε και το paymentMethod στο Service
+                var checkoutResult = await _cartService.CheckoutAsync(customerId, paymentProvider, tenantId, paymentMethod);
+
+                // Αν είναι αντικαταβολή, το url θα είναι null ή άδειο
+                if (paymentMethod.Equals("CashOnDelivery", StringComparison.OrdinalIgnoreCase))
+                {
+                    return Ok(new
+                    {
+                        message = "Η παραγγελία σας καταχωρήθηκε επιτυχώς με Αντικαταβολή!",
+                        orderId = checkoutResult.OrderId,
+                        url = (string?)null
+                    });
+                }
 
                 return Ok(new
                 {
