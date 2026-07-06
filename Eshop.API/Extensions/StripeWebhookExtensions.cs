@@ -34,7 +34,8 @@ namespace Eshop.API.Extensions
 
                 // 3. Ανάγνωση του Configuration με τον απόλυτο τρόπο μέσω RequestServices
                 var config = context.RequestServices.GetRequiredService<IConfiguration>();
-                var webhookSecret = config.GetValue<string>("Stripe:WebhookSecret");
+
+                var webhookSecret = config.GetValue<string>("PaymentProviders:Stripe:WebhookSecret");
 
                 // ΑΝ ΚΑΙ ΠΑΛΙ ΓΙΑ ΚΑΠΟΙΟ ΜΥΣΤΗΡΙΩΔΗ ΛΟΓΟ ΒΓΑΛΕΙ NULL, 
                 // βάλε εδώ το string καρφωτό για να ηρεμήσεις, και στο production το αλλάζουμε!
