@@ -1,8 +1,9 @@
-﻿using Eshop.Core.DTOs;
+﻿using Eshop.API.Filters;
+using Eshop.Core.DTOs;
 using Eshop.Core.Interfaces;
 using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
 
 namespace Eshop.API.Controllers
 {
@@ -38,6 +39,8 @@ namespace Eshop.API.Controllers
         }
 
         [HttpPost]
+        [Authorize(Roles = "Administrator")]
+        [TenantAuthorize]
         public async Task<IActionResult> Create([FromBody] ProductCreateDto dto)
         {
             var newProduct = await _productService.CreateProductAsync(dto);
@@ -45,6 +48,8 @@ namespace Eshop.API.Controllers
         }
 
         [HttpPut("{id}")]
+        [Authorize(Roles = "Administrator")]
+        [TenantAuthorize]
         public async Task<IActionResult> Update(int id, [FromBody] ProductCreateDto dto)
         {
             var updatedProduct = await _productService.UpdateProductAsync(id, dto);
@@ -56,6 +61,8 @@ namespace Eshop.API.Controllers
         }
 
         [HttpDelete("{id}")]
+        [Authorize(Roles = "Administrator")]
+        [TenantAuthorize]
         public async Task<IActionResult> Delete(int id)
         {
             var deleted = await _productService.DeleteProductAsync(id);
@@ -67,6 +74,8 @@ namespace Eshop.API.Controllers
         }
 
         [HttpPost("{id}/image")]
+        [Authorize(Roles = "Administrator")]
+        [TenantAuthorize]
         public async Task<IActionResult> UploadProductImage(int id, IFormFile file)
         {
             if (file == null || file.Length == 0)
@@ -98,6 +107,8 @@ namespace Eshop.API.Controllers
 
         // DELETE: api/products/{id}/image
         [HttpDelete("{id}/image")]
+        [Authorize(Roles = "Administrator")]
+        [TenantAuthorize]
         public async Task<IActionResult> DeleteProductImage(int id)
         {
             try
@@ -115,8 +126,9 @@ namespace Eshop.API.Controllers
             }
         }
 
-        [Authorize(Roles = "Administrator")]
         [HttpPut("{id}/discounts")]
+        [Authorize(Roles = "Administrator")]
+        [TenantAuthorize]
         public async Task<IActionResult> ApplyProductDiscount(int id, [FromBody] UpdateProductDiscountDto dto)
         {
             try

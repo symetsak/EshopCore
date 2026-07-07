@@ -17,12 +17,14 @@ namespace Eshop.Application.Services
         private readonly ICustomerRepository _customerRepo;
         private readonly IMapper _mapper;
         private readonly IConfiguration _configuration;
+        private readonly ITenantProvider _tenantProvider;
 
-        public CustomerService(ICustomerRepository customerRepo, IMapper mapper, IConfiguration configuration)
+        public CustomerService(ICustomerRepository customerRepo, IMapper mapper, IConfiguration configuration, ITenantProvider tenantProvider)
         {
             _customerRepo = customerRepo;
             _mapper = mapper;
             _configuration = configuration;
+            _tenantProvider = tenantProvider;
         }
 
         public async Task<CustomerAuthResponseDto> RegisterAsync(CustomerRegisterDto dto)
@@ -104,7 +106,8 @@ namespace Eshop.Application.Services
             {
                 new Claim(ClaimTypes.Name, customer.Email),
                 new Claim(ClaimTypes.Role, "Customer"),
-                new Claim("CustomerId", customer.Id.ToString())
+                new Claim("CustomerId", customer.Id.ToString()),
+                new Claim("TenantId", _tenantProvider.TenantId!)
             };
 
             var jwtSecret = _configuration["JwtSettings:Secret"] ?? "$uper$ecureL0ngKeyCh@ngeMe!WhyS0L0ngMu$tBeThi$Key";

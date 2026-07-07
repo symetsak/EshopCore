@@ -1,4 +1,5 @@
-﻿using Eshop.Core.DTOs;
+﻿using Eshop.API.Filters;
+using Eshop.Core.DTOs;
 using Eshop.Core.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -9,7 +10,8 @@ namespace Eshop.API.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
-    [Authorize] 
+    [Authorize]
+    [TenantAuthorize]
     public class CartsController : ControllerBase
     {
         private readonly ICartService _cartService;
