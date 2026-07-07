@@ -1,13 +1,15 @@
-﻿using System.Security.Claims;
+﻿using Eshop.API.Filters;
 using Eshop.Core.DTOs;
 using Eshop.Core.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using System.Security.Claims;
 
 namespace Eshop.API.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
+    [TenantAuthorize]
     public class OrdersController : ControllerBase
     {
         private readonly IOrderService _orderService;
