@@ -11,13 +11,17 @@ namespace Eshop.Application.Services
         private readonly IProductRepository _productRepo; // Για έλεγχο και ενημέρωση του Stock
         private readonly IMapper _mapper;
         private readonly INotificationRepository _notificationRepo;
+        private readonly IEshopNotificationService _notificationService;
+        private readonly ITenantProvider _tenantProvider;
 
-        public OrderService(IOrderRepository orderRepo, IProductRepository productRepo, IMapper mapper, INotificationRepository notificationRepo)
+        public OrderService(IOrderRepository orderRepo, IProductRepository productRepo, IMapper mapper, INotificationRepository notificationRepo, IEshopNotificationService notificationService, ITenantProvider tenantProvider)
         {
             _orderRepo = orderRepo;
             _productRepo = productRepo;
             _mapper = mapper;
             _notificationRepo = notificationRepo;
+            _notificationService = notificationService;
+            _tenantProvider = tenantProvider;
         }
 
         public async Task<OrderResponseDto> CreateOrderAsync(int customerId, OrderCreateDto dto)
@@ -40,7 +44,7 @@ namespace Eshop.Application.Services
                 OrderDate = DateTime.UtcNow,
                 Status = initialStatus,
                 PaymentMethod = dto.PaymentMethod,
-                TotalAmount = 0 
+                TotalAmount = 0
             };
 
             decimal totalAmount = 0;
@@ -99,6 +103,9 @@ namespace Eshop.Application.Services
             await _notificationRepo.AddAsync(welcomeNotification);
             await _notificationRepo.SaveChangesAsync();
 
+            // REAL-TIME ΕΙΔΟΠΟΙΗΣΗ ΜΕΣΩ SIGNALR ΣΤΟΝ CUSTOMER
+            await _notificationService.SendToCustomerAsync(_tenantProvider.TenantId!, customerId, welcomeTitle, welcomeMessage, new { orderId = order.Id, status = initialStatus });
+
             // 6. Mapping στο Response DTO για να το γυρίσουμε στο frontend
             return _mapper.Map<OrderResponseDto>(order);
         }
@@ -118,7 +125,7 @@ namespace Eshop.Application.Services
         public async Task<OrderResponseDto?> UpdateOrderStatusAsync(int orderId, OrderStatusUpdateDto dto)
         {
             // Λίστα με τα επιτρεπόμενα Status Παραγγελίας
-            var allowedStatuses = new[] { "Pending", "PendingPayment","Paid", "Shipped", "Completed", "Cancelled", "Refunded", "CancellationRequested" };
+            var allowedStatuses = new[] { "Pending", "PendingPayment", "Paid", "Shipped", "Completed", "Cancelled", "Refunded", "CancellationRequested" };
 
             if (!allowedStatuses.Contains(dto.Status, StringComparer.OrdinalIgnoreCase))
             {
@@ -144,7 +151,7 @@ namespace Eshop.Application.Services
             //Κανόνας 2: Μετάβαση σε Refunded μόνο αν ήταν Cancelled
             if (newStatus.Equals("Refunded", StringComparison.OrdinalIgnoreCase) && !oldStatus.Equals("Cancelled", StringComparison.OrdinalIgnoreCase))
             {
-                    throw new InvalidOperationException("Μια παραγγελία μπορεί να πάει σε κατάσταση 'Refunded' μόνο αν έχει ήδη ακυρωθεί ('Cancelled').");       
+                throw new InvalidOperationException("Μια παραγγελία μπορεί να πάει σε κατάσταση 'Refunded' μόνο αν έχει ήδη ακυρωθεί ('Cancelled').");
             }
 
             // Κανόνας 3: Διαχείρηση Αποθέματος και συμπεριφοράς πληρωμών
@@ -205,7 +212,7 @@ namespace Eshop.Application.Services
             else if (newStatus.Equals("Refunded", StringComparison.OrdinalIgnoreCase))
             {
                 notificationTitle = "Η επιστροφή χρημάτων ολοκληρώθηκε!";
-                notificationMessage = $"Τα χρήματα για την ακυρωμένη παραγγελία #{order.Id} έχουν επιστραφεί επιτυχώς στον λογαριασμό σας.";
+                notificationMessage = $"Τα χρήματα για την ακυρωμένη παραγγελία #{order.Id} έχουν επιστραφούν επιτυχώς στον λογαριασμό σας.";
             }
 
             // 3. Ενημέρωση του Status
@@ -225,6 +232,18 @@ namespace Eshop.Application.Services
 
             await _notificationRepo.AddAsync(statusNotification);
             await _notificationRepo.SaveChangesAsync();
+
+            // 5. Αποστολή real-time ειδοποίησης στον σωστό αποδέκτη μέσω SignalR
+            if (newStatus.Equals("CancellationRequested", StringComparison.OrdinalIgnoreCase))
+            {
+                // Αν είναι αίτημα ακύρωσης, το SignalR ειδοποιεί live ΜΟΝΟ τους Admins του Tenant
+                await _notificationService.SendToAdminsAsync(_tenantProvider.TenantId!, "Νέο Αίτημα Ακύρωσης Παραγγελίας!", $"Ο πελάτης ζήτησε ακύρωση για την παραγγελία #{order.Id}.", new { orderId = order.Id });
+            }
+            else
+            {
+                // Για όλες τις άλλες αλλαγές status (Shipped, Paid, κτλ), ενημερώνεται live ΜΟΝΟ ο Customer
+                await _notificationService.SendToCustomerAsync(_tenantProvider.TenantId!, order.CustomerId, notificationTitle, notificationMessage, new { orderId = order.Id, newStatus = newStatus });
+            }
 
             return _mapper.Map<OrderResponseDto>(order);
         }

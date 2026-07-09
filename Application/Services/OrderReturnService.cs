@@ -16,19 +16,18 @@ namespace Eshop.Application.Services
         private readonly IProductRepository _productRepo;
         private readonly INotificationRepository _notificationRepo;
         private readonly IMapper _mapper;
+        private readonly IEshopNotificationService _notificationService;
+        private readonly ITenantProvider _tenantProvider;
 
-        public OrderReturnService(
-            IOrderReturnRepository returnRepo,
-            IOrderRepository orderRepo,
-            IProductRepository productRepo,
-            INotificationRepository notificationRepo,
-            IMapper mapper)
+        public OrderReturnService(IOrderReturnRepository returnRepo, IOrderRepository orderRepo, IProductRepository productRepo, INotificationRepository notificationRepo, IMapper mapper, IEshopNotificationService notificationService, ITenantProvider tenantProvider)
         {
             _returnRepo = returnRepo;
             _orderRepo = orderRepo;
             _productRepo = productRepo;
             _notificationRepo = notificationRepo;
             _mapper = mapper;
+            _notificationService = notificationService;
+            _tenantProvider = tenantProvider;
         }
 
         // 1. ΔΗΜΙΟΥΡΓΙΑ ΑΙΤΗΜΑΤΟΣ ΕΠΙΣΤΡΟΦΗΣ (Customer)
@@ -154,6 +153,9 @@ namespace Eshop.Application.Services
             await _notificationRepo.AddAsync(returnNotification);
             await _notificationRepo.SaveChangesAsync();
 
+            // REAL-TIME SIGNALR ΕΙΔΟΠΟΙΗΣΗ ΣΤΟΥΣ ADMINS ΓΙΑ ΤΟ ΝΕΟ ΑΙΤΗΜΑ
+            await _notificationService.SendToAdminsAsync(_tenantProvider.TenantId!, "Νέο Αίτημα Επιστροφής!", $"Υποβλήθηκε αίτημα για την παραγγελία #{order.Id}", new { returnId = orderReturn.Id });
+
             return _mapper.Map<OrderReturnResponseDto>(orderReturn);
         }
 
@@ -239,6 +241,9 @@ namespace Eshop.Application.Services
             };
             await _notificationRepo.AddAsync(statusNotification);
             await _notificationRepo.SaveChangesAsync();
+
+            // REAL-TIME SIGNALR ΕΙΔΟΠΟΙΗΣΗ ΑΠΟΚΛΕΙΣΤΙΚΑ ΣΤΟΝ CUSTOMER ΓΙΑ ΤΗΝ ΑΛΛΑΓΗ STATUS
+            await _notificationService.SendToCustomerAsync(_tenantProvider.TenantId!, orderReturn.CustomerId, notificationTitle, notificationMessage, new { returnId = orderReturn.Id, status = newStatus });
 
             return _mapper.Map<OrderReturnResponseDto>(orderReturn);
         }

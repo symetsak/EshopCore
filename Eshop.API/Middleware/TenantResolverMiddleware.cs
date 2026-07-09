@@ -2,6 +2,10 @@
 using Eshop.Infrastructure.Data;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
+using System;
+using System.Linq;
+using System.Threading.Tasks;
 
 namespace Eshop.API.Middleware
 {
@@ -40,11 +44,27 @@ namespace Eshop.API.Middleware
                 return;
             }
 
-            // 3. ΕΛΕΓΧΟΣ HEADER: Προσπαθούμε να διαβάσουμε το Tenant ID από το HTTP Header
-            if (context.Request.Headers.TryGetValue("X-Tenant-Id", out var tenantId))
-            {
-                var tId = tenantId.ToString().Trim().ToLower();
+            // 3. ΕΛΕΓΧΟΣ HEADER ΚΑΙ SIGNALR FALLBACK: Προσπαθούμε να διαβάσουμε το Tenant ID
+            string? tId = null;
 
+            if (context.Request.Headers.TryGetValue("X-Tenant-Id", out var tenantIdHeader))
+            {
+                tId = tenantIdHeader.ToString().Trim().ToLower();
+            }
+            // Αν δεν υπάρχει το HTTP Header, αλλά το request είναι για το SignalR Hub,
+            // τραβάμε το TenantId απευθείας από τα Claims του χρήστη (από το JWT Token)!
+            else if (path.Contains("/api/notificationhub"))
+            {
+                var tenantIdClaim = context.User?.FindFirst("TenantId")?.Value;
+                if (!string.IsNullOrEmpty(tenantIdClaim))
+                {
+                    tId = tenantIdClaim.Trim().ToLower();
+                }
+            }
+
+            // Αν βρέθηκε έγκυρο Tenant ID (είτε από το Header είτε από το Token του SignalR)
+            if (!string.IsNullOrEmpty(tId))
+            {
                 // 4. ΑΝΑΖΗΤΗΣΗ ΣΤΗ MASTER DB: Ψάχνουμε τον πελάτη στην κεντρική βάση δεδομένων
                 var tenant = await masterDbContext.Tenants.FindAsync(tId);
 
