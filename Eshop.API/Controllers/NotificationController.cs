@@ -3,22 +3,29 @@ using Eshop.Core.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
-
 namespace Eshop.API.Controllers
 {
     [ApiController]
     [Route("api/notifications")]
-    [Authorize] // Ασφάλεια: Μόνο για συνδεδεμένους χρήστες!
+    [Authorize] 
     public class NotificationsController : ControllerBase
     {
         private readonly INotificationService _notificationService;
         private readonly INotificationRepository _notificationRepo;
+        private readonly IEshopNotificationService _eshopNotificationService; 
+        private readonly ITenantProvider _tenantProvider; 
 
         // Inject το Service των ειδοποιήσεων
-        public NotificationsController(INotificationService notificationService, INotificationRepository notificationRepo)
+        public NotificationsController(
+            INotificationService notificationService,
+            INotificationRepository notificationRepo,
+            IEshopNotificationService eshopNotificationService,
+            ITenantProvider tenantProvider)
         {
             _notificationService = notificationService;
             _notificationRepo = notificationRepo;
+            _eshopNotificationService = eshopNotificationService;
+            _tenantProvider = tenantProvider;
         }
 
         [HttpGet]
@@ -73,6 +80,9 @@ namespace Eshop.API.Controllers
 
                 if (success)
                 {
+                    // Μόλις αλλάξει στη βάση, σπρώχνουμε live το νέο Count σε όλα τα ανοιχτά tabs του χρήστη!
+                    await _eshopNotificationService.SyncCustomerUnreadCountAsync(_tenantProvider.TenantId!, customerId);
+
                     return Ok(new { message = "Η ειδοποίηση σημάνθηκε ως διαβασμένη." });
                 }
 

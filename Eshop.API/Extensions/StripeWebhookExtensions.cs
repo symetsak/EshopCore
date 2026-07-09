@@ -1,12 +1,8 @@
 ﻿using Eshop.Core.Interfaces;
-using Microsoft.AspNetCore.Builder;
-using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Routing;
-using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.DependencyInjection;
 using Stripe;
-using System;
-using System.IO;
+using Eshop.API.Hubs; 
+using Microsoft.AspNetCore.SignalR; 
+
 
 namespace Eshop.API.Extensions
 {
@@ -34,6 +30,8 @@ namespace Eshop.API.Extensions
 
                 // 3. Ανάγνωση του Configuration με τον απόλυτο τρόπο μέσω RequestServices
                 var config = context.RequestServices.GetRequiredService<IConfiguration>();
+
+                var eshopNotificationService = context.RequestServices.GetRequiredService<IEshopNotificationService>();
 
                 var webhookSecret = config.GetValue<string>("PaymentProviders:Stripe:WebhookSecret");
 
@@ -85,6 +83,19 @@ namespace Eshop.API.Extensions
                                         order.Status = "Paid";
                                         await orderRepo.SaveChangesAsync();
                                         Console.WriteLine($"[Stripe Webhook] Η παραγγελία {orderId} για τον Tenant {tenantId} έγινε PAID!");
+
+                                        // Φτιάχνουμε το όνομα του Group βάσει του Tenant
+                                        var tenantGroupName = $"Group_{tenantId!.ToLower().Trim()}";
+
+                                        // Στέλνουμε το live καμπανάκι ΑΠΟΚΛΕΙΣΤΙΚΑ στο back-office (στους Admins) του Tenant!
+                                        await eshopNotificationService.SendToAdminsAsync(
+                                            tenantId,
+                                            "Νέα Πληρωμή!",
+                                            $"Η παραγγελία #{orderId} πληρώθηκε επιτυχώς μέσω Stripe.",
+                                            new { orderId = orderId }
+                                        );
+
+                                        Console.WriteLine($"[SignalR] Εστάλη live ειδοποίηση στους Admins του Tenant {tenantId} για την παραγγελία #{orderId}");
                                     }
                                     else
                                     {

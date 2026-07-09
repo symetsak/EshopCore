@@ -36,6 +36,24 @@ namespace Eshop.API.Extensions
                     IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey!)),
                     ClockSkew = TimeSpan.FromMinutes(5)
                 };
+
+                // Λέμε στο JWT να διαβάζει το token από το Query String αν το request είναι για το SignalR
+                options.Events = new JwtBearerEvents
+                {
+                    OnMessageReceived = context =>
+                    {
+                        var accessToken = context.Request.Query["access_token"];
+
+                        // Αν το request πηγαίνει στο endpoint του SignalR...
+                        var path = context.HttpContext.Request.Path;
+                        if (!string.IsNullOrEmpty(accessToken) && path.StartsWithSegments("/api/notificationhub"))
+                        {
+                            // ...τότε διάβασε το token από το Query String!
+                            context.Token = accessToken;
+                        }
+                        return Task.CompletedTask;
+                    }
+                };
             });
 
             // 2. Swagger Configuration
