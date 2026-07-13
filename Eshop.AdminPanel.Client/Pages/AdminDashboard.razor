@@ -1,0 +1,46 @@
+﻿@page "/admin/dashboard"
+@attribute [Authorize(Roles = "Administrator")]
+
+<MudText Typo="Typo.h4" Class="mb-6">Σύνοψη Καταστήματος</MudText>
+
+<MudGrid>
+    <MudItem xs="12" sm="6" md="3">
+        <MudPaper Class="d-flex flex-row pt-6 pb-4 px-4" Style="background-color: #E8F5E9;">
+            <MudIcon Icon="@Icons.Material.Filled.AttachMoney" Color="Color.Success" Size="Size.Large" Class="mx-4" />
+            <div>
+                <MudText Typo="Typo.subtitle1" Class="mud-text-secondary">Ημερήσια Έσοδα</MudText>
+                <MudText Typo="Typo.h5" FontStyle.Normal>1.250,00 €</MudText>
+            </div>
+        </MudPaper>
+    </MudItem>
+
+    <MudItem xs="12" sm="6" md="3">
+        <MudPaper Class="d-flex flex-row pt-6 pb-4 px-4" Style="background-color: #E3F2FD;">
+            <MudIcon Icon="@Icons.Material.Filled.ShoppingBag" Color="Color.Info" Size="Size.Large" Class="mx-4" />
+            <div>
+                <MudText Typo="Typo.subtitle1" Class="mud-text-secondary">Νέες Παραγγελίες</MudText>
+                <MudText Typo="Typo.h5">14</MudText>
+            </div>
+        </MudPaper>
+    </MudItem>
+
+    <MudItem xs="12" sm="6" md="3">
+        <MudPaper Class="d-flex flex-row pt-6 pb-4 px-4" Style="background-color: #FFEBEE;">
+            <MudIcon Icon="@Icons.Material.Filled.Warning" Color="Color.Error" Size="Size.Large" Class="mx-4" />
+            <div>
+                <MudText Typo="Typo.subtitle1" Class="mud-text-secondary">Αιτήματα Ακύρωσης</MudText>
+                <MudText Typo="Typo.h5" Style="color: #D32F2F;">3</MudText>
+            </div>
+        </MudPaper>
+    </MudItem>
+
+    <MudItem xs="12" sm="6" md="3">
+        <MudPaper Class="d-flex flex-row pt-6 pb-4 px-4" Style="background-color: #FFF3E0;">
+            <MudIcon Icon="@Icons.Material.Filled.Layers" Color="Color.Warning" Size="Size.Large" Class="mx-4" />
+            <div>
+                <MudText Typo="Typo.subtitle1" Class="mud-text-secondary">Χαμηλό Απόθεμα</MudText>
+                <MudText Typo="Typo.h5">5 Προϊόντα</MudText>
+            </div>
+        </MudPaper>
+    </MudItem>
+</MudGrid>

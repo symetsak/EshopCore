@@ -1,5 +1,6 @@
 ﻿using Eshop.Core.DTOs;
 using Eshop.Core.Interfaces;
+using Eshop.Infrastructure.Repositories;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -71,6 +72,46 @@ namespace Eshop.API.Controllers
             }
 
             return Ok(new { message = "Αποσύνδεση επιτυχής. Το Refresh Token ακυρώθηκε." });
+        }
+
+        [HttpPost("change-password")] 
+        public async Task<IActionResult> ChangePassword([FromBody] ChangePasswordRequestDto request)
+        {
+            // Διαβάζουμε το TenantId από το Header
+            if (!Request.Headers.TryGetValue("X-Tenant-Id", out var tenantId))
+            {
+                return BadRequest(new { message = "Το Header 'X-Tenant-Id' λείπει από το αίτημα." });
+            }
+
+            // Καλούμε το Service Layer
+            bool result = await _userService.ChangePasswordAsync(request, tenantId.ToString());
+
+            if (!result)
+            {
+                return BadRequest(new { message = "Ο τωρινός κωδικός είναι λάθος ή ο χρήστης δεν βρέθηκε." });
+            }
+
+            return Ok(new { message = "Ο κωδικός πρόσβασης άλλαξε επιτυχώς!" });
+        }
+
+        [HttpPost("create")]
+        [Authorize(Roles = "Administrator")] 
+        public async Task<IActionResult> CreateUser([FromBody] CreateUserDto dto)
+        {
+            bool result = await _userService.CreateUserAsync(dto);
+            if (!result) return BadRequest(new { message = "Το όνομα χρήστη χρησιμοποιείται ήδη." });
+
+            return Ok(new { message = "Ο χρήστης δημιουργήθηκε επιτυχώς!" });
+        }
+
+        [HttpPut("update/{id}")]
+        [Authorize(Roles = "Administrator")] 
+        public async Task<IActionResult> UpdateUser(int id, [FromBody] UpdateUserDto dto)
+        {
+            bool result = await _userService.UpdateUserAsync(id, dto);
+            if (!result) return NotFound(new { message = "Ο χρήστης δεν βρέθηκε." });
+
+            return Ok(new { message = "Τα στοιχεία του χρήστη ενημερώθηκαν!" });
         }
     }
 }

@@ -1,0 +1,119 @@
+﻿@inherits LayoutComponentBase
+@inject AuthenticationStateProvider AuthStateProvider
+@inject NavigationManager NavManager
+@inject HttpClient Http
+@inject Blazored.LocalStorage.ILocalStorageService LocalStorage
+
+<MudLayout>
+    <MudAppBar Elevation="1" Color="Color.Primary">
+        <MudIconButton Icon="@Icons.Material.Filled.Menu" Color="Color.Inherit" Edge="Edge.Start" OnClick="@((e) => DrawerToggle())" />
+        <MudText Typo="Typo.h5" Class="ml-3">Tenant Admin Panel</MudText>
+        <MudSpacer />
+
+        <MudBadge Content="3" Color="Color.Error" Overlap="true" Class="mx-4">
+            <MudIcon Icon="@Icons.Material.Filled.Notifications" Color="Color.Inherit" />
+        </MudBadge>
+
+        <MudText Typo="Typo.body1" Class="mx-2">adidas-store Admin</MudText>
+
+        <MudTooltip Text="Αποσύνδεση">
+            <MudIconButton Icon="@Icons.Material.Filled.Logout" Color="Color.Inherit" OnClick="HandleLogout" />
+        </MudTooltip>
+    </MudAppBar>
+
+    <MudDrawer @bind-Open="_drawerOpen" Elevation="2" ClipMode="DrawerClipMode.Always">
+        <MudNavMenu>
+            <MudText Typo="Typo.subtitle2" Color="Color.Secondary" Class="px-4 py-2">ΔΙΑΧΕΙΡΙΣΗ</MudText>
+            <MudNavLink Match="NavLinkMatch.All" Icon="@Icons.Material.Filled.Dashboard" Href="/admin/dashboard">Dashboard</MudNavLink>
+            <MudNavLink Icon="@Icons.Material.Filled.ShoppingCart" Href="/admin/orders">Παραγγελίες</MudNavLink>
+            <MudNavLink Icon="@Icons.Material.Filled.Inventory" Href="/admin/products">Προϊόντα</MudNavLink>
+            <MudNavLink Icon="@Icons.Material.Filled.AssignmentReturn" Href="/admin/returns">Επιστροφές</MudNavLink>
+
+            <MudDivider Class="my-2" />
+            <MudText Typo="Typo.subtitle2" Color="Color.Secondary" Class="px-4 py-2">ΡΥΘΜΙΣΕΙΣ</MudText>
+            <MudNavLink Icon="@Icons.Material.Filled.Settings" Href="/admin/settings">Κατάστημα</MudNavLink>
+        </MudNavMenu>
+    </MudDrawer>
+
+    <MudMainContent Class="pt-16 px-8">
+        <MudContainer MaxWidth="MaxWidth.False" Class="mt-4">
+            @Body
+        </MudContainer>
+    </MudMainContent>
+</MudLayout>
+
+@code {
+    bool _drawerOpen = true;
+
+    void DrawerToggle()
+    {
+        _drawerOpen = !_drawerOpen;
+    }
+
+    private async Task HandleLogout()
+    {
+        try
+        {
+            // 1. Διαβάζουμε δυναμικά τα δεδομένα από το Local Storage
+            var refreshToken = await LocalStorage.GetItemAsync<string>("refreshToken");
+            var tenantId = await LocalStorage.GetItemAsync<string>("tenantId");
+
+            // Αν το tenantId λείπει από το storage, το βρίσκουμε από τα Claims του συνδεδεμένου χρήστη!
+            if (string.IsNullOrEmpty(tenantId))
+            {
+                var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+                var user = authState.User;
+
+                // Ψάχνουμε το claim του Tenant ή διαβάζουμε το email (π.χ. admin@adidas-store.com)
+                var emailClaim = user.FindFirst(System.Security.Claims.ClaimTypes.Email)?.Value;
+                if (!string.IsNullOrEmpty(emailClaim) && emailClaim.Contains("@"))
+                {
+                    tenantId = emailClaim.Split('@')[1].Split('.')[0]; // Βγάζει το "adidas-store"
+                }
+            }
+
+            // Εκτύπωση για να βλέπεις στην κονσόλα ότι είναι 100% δυναμικό!
+            Console.WriteLine($"[LOGOUT DEBUG] Token: {refreshToken} | Δυναμικό Tenant: {tenantId}");
+
+            if (!string.IsNullOrEmpty(refreshToken) && !string.IsNullOrEmpty(tenantId))
+            {
+                // 2. JSON Payload για το Backend DTO
+                var jsonPayload = $"{{\n  \"RefreshToken\": \"{refreshToken}\"\n}}";
+                var content = new StringContent(jsonPayload, System.Text.Encoding.UTF8, "application/json");
+
+                // 3. HttpRequest με το Δυναμικό Header
+                var request = new HttpRequestMessage(HttpMethod.Post, "api/Users/logout");
+                request.Content = content;
+
+                // ΕΔΩ ΜΠΑΙΝΕΙ ΤΟ ΔΥΝΑΜΙΚΟ TENANT
+                request.Headers.Add("X-Tenant-Id", tenantId);
+
+                // 4. Αποστολή στο API
+                var response = await Http.SendAsync(request);
+
+                Console.WriteLine($"[LOGOUT DEBUG] API Response Status: {response.StatusCode}");
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"API Logout Error: {ex.Message}");
+        }
+        finally
+        {
+            // 5. Καθαρίζουμε τον Provider και σβήνουμε ΚΑΙ το tenantId για τον επόμενο χρήστη
+            if (AuthStateProvider is CustomAuthStateProvider customAuth)
+            {
+                await customAuth.MarkUserAsLoggedOut();
+            }
+            await LocalStorage.RemoveItemAsync("tenantId");
+
+            // Επιστροφή στο Login
+            NavManager.NavigateTo("/login");
+        }
+    }
+
+    public class LogoutRequestBody
+    {
+        public string RefreshToken { get; set; } = string.Empty;
+    }
+}
