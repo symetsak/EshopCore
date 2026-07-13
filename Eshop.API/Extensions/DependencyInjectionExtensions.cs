@@ -57,6 +57,9 @@ namespace Eshop.API.Extensions
             // Εγγραφή του Background Worker για αυτόματη ακύρωση απλήρωτων παραγγελιών κάρτας
             services.AddHostedService<PaymentTimeoutWorker>();
 
+            // Εγγραφή του Background Worker για αυτόματη εκαθάριση ληγμένων Refresh Tokens από τη βάση
+            services.AddHostedService<Eshop.Infrastructure.Services.TokenCleanupService>();
+
             return services;
         }
     }

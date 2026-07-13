@@ -27,32 +27,24 @@ namespace Eshop.Application.Services
 
         public async Task<LoginResponseDto?> LoginAsync(LoginRequestDto dto, string tenantId)
         {
-            // 1. Αναζήτηση του χρήστη βάσει Username μέσω του Repository
+            // 1. Αναζήτηση του χρήστη βάσει Username
             var user = await _userRepo.GetByUsernameAsync(dto.Username);
             if (user == null) return null;
 
-            // 2. Έλεγχος Password (με fallback για τον System Admin)
-            bool isPasswordValid = false;
-            if (user.Username.ToLower() == "admin" && dto.Password == "Admin123!")
-            {
-                isPasswordValid = true;
-            }
-            else
-            {
-                isPasswordValid = BCrypt.Net.BCrypt.Verify(dto.Password, user.PasswordHash);
-            }
+            // 2. ΕΛΕΓΧΟΣ PASSWORD ΑΠΟΚΛΕΙΣΤΙΚΑ ΜΕ BCRYPT (Τέρμα τα hardcoded passwords!)
+            bool isPasswordValid = BCrypt.Net.BCrypt.Verify(dto.Password, user.PasswordHash);
 
             if (!isPasswordValid) return null;
 
-            // 3. Παραγωγή του JWT Token για τον Admin
+            // 3. Παραγωγή του JWT Token
             var accessToken = GenerateAccessToken(user, tenantId);
 
-            // 4. Παραγωγή & Αποθήκευση Refresh Token (72 Ώρες)
+            // 4. Παραγωγή & Αποθήκευση Refresh Token
             var refreshTokenEntity = GenerateRefreshTokenEntity(user.Id);
             await _userRepo.AddRefreshTokenAsync(refreshTokenEntity);
             await _userRepo.SaveChangesAsync();
 
-            // 5. Επιστροφή Response
+            // 5. Response
             var response = _mapper.Map<LoginResponseDto>(user);
             response.Token = accessToken;
             response.RefreshToken = refreshTokenEntity.Token;
@@ -132,7 +124,7 @@ namespace Eshop.Application.Services
             {
                 Token = refreshTokenString,
                 UserId = userId,
-                ExpiresAt = DateTime.UtcNow.AddHours(72),
+                ExpiresAt = DateTime.UtcNow.AddHours(12),
                 CreatedAt = DateTime.UtcNow
             };
         }
@@ -149,6 +141,59 @@ namespace Eshop.Application.Services
             _userRepo.RemoveRefreshToken(storedToken);
             await _userRepo.SaveChangesAsync();
 
+            return true;
+        }
+
+        public async Task<bool> ChangePasswordAsync(ChangePasswordRequestDto dto, string tenantId)
+        {
+            // 1. Καλούμε το Repository για να κάνει τη βαριά δουλειά στη μνήμη
+            // (Έλεγχος χρήστη, Verify Password με BCrypt, και Hash-άρισμα του νέου κωδικού)
+            bool isPrepared = await _userRepo.ChangePasswordAsync(dto.Username, dto.CurrentPassword, dto.NewPassword, tenantId);
+
+            if (!isPrepared) return false;
+
+            // 2. Αφού το Repository έκανε σωστά το update στο User Entity, 
+            // σώζουμε τις αλλαγές στη βάση δεδομένων του συγκεκριμένου Tenant!
+            await _userRepo.SaveChangesAsync();
+
+            return true;
+        }
+
+        public async Task<bool> CreateUserAsync(CreateUserDto dto)
+        {
+            // Έλεγχος αν υπάρχει ήδη το username
+            var existingUser = await _userRepo.GetByUsernameAsync(dto.Username);
+            if (existingUser != null) return false;
+
+            var newUser = new User
+            {
+                Username = dto.Username,
+                FirstName = dto.FirstName,
+                LastName = dto.LastName,
+                Email = dto.Email,
+                Role = dto.Role,
+                IsFirstLogin = true, // Οι χρήστες που φτιάχνει ο admin δεν χρειάζονται force reset
+                PasswordHash = BCrypt.Net.BCrypt.HashPassword("Welcome123!"), // Κρυπτογράφηση
+                CreatedAt = DateTime.UtcNow
+            };
+
+            await _userRepo.AddUserAsync(newUser);
+            await _userRepo.SaveChangesAsync();
+            return true;
+        }
+
+        public async Task<bool> UpdateUserAsync(int id, UpdateUserDto dto)
+        {
+            var user = await _userRepo.GetByIdAsync(id);
+            if (user == null) return false;
+
+            user.FirstName = dto.FirstName;
+            user.LastName = dto.LastName;
+            user.Email = dto.Email;
+            if (!string.IsNullOrEmpty(dto.Role)) user.Role = dto.Role;
+
+            _userRepo.UpdateUser(user);
+            await _userRepo.SaveChangesAsync();
             return true;
         }
     }

@@ -1,0 +1,149 @@
+﻿@page "/login"
+@layout Layout.EmptyLayout
+<MudContainer MaxWidth="MaxWidth.Small" Class="d-flex align-center justify-center" Style="height:100vh;">
+    <MudPaper Elevation="4" Class="pa-8" Style="width:100%; max-width:400px; border-radius:16px;">
+
+        <div class="text-center mb-6">
+            <MudIcon Icon="@Icons.Material.Filled.Storefront" Color="Color.Primary" Size="Size.Large" Class="mb-2" Style="font-size: 3rem;" />
+            <MudText Typo="Typo.h4" Class="font-weight-bold" Style="font-size: 1.8rem; color: #333;">My E-shop Panel</MudText>
+            <MudText Typo="Typo.body1" Class="mud-text-secondary mt-1">Διαχείριση καταστήματος</MudText>
+        </div>
+
+        <EditForm Model="@_loginModel" OnValidSubmit="HandleLogin">
+            <DataAnnotationsValidator />
+
+            <MudTextField Label="Όνομα Καταστήματος (Slug)" @bind-Value="_loginModel.TenantId"
+                          For="@(() => _loginModel.TenantId)" Variant="Variant.Outlined"
+                          Placeholder="e.g. adidas-store" Adornment="Adornment.Start"
+                          AdornmentIcon="@Icons.Material.Filled.Business" Class="mb-4" />
+
+            <MudTextField Label="Όνομα Χρήστη (Username)" @bind-Value="_loginModel.Username"
+                          For="@(() => _loginModel.Username)" Variant="Variant.Outlined"
+                          Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Person" Class="mb-4" />
+
+            <MudTextField Label="Κωδικός Πρόσβασης" @bind-Value="_loginModel.Password"
+                          For="@(() => _loginModel.Password)" Variant="Variant.Outlined"
+                          InputType="@_passwordInput" Adornment="Adornment.End"
+                          AdornmentIcon="@_passwordInputIcon" OnAdornmentClick="TogglePasswordVisibility"
+                          AdornmentAriaLabel="Εμφάνιση Κωδικού" Class="mb-6" />
+
+            @if (!string.IsNullOrEmpty(_errorMessage))
+            {
+                <MudAlert Severity="Severity.Error" Variant="Variant.Filled" Class="mb-4 pa-2">@_errorMessage</MudAlert>
+            }
+
+            <MudButton ButtonType="ButtonType.Submit" Variant="Variant.Filled" Color="Color.Primary"
+                       FullWidth="true" Size="Size.Large" Disabled="@_isSubmitting" Style="border-radius:8px; height: 48px;">
+                @if (_isSubmitting)
+                {
+                    <MudProgressCircular Class="ms-n1" Size="Size.Small" Indeterminate="true" />
+                    <MudText Class="ms-2">Σύνδεση...</MudText>
+                }
+                else
+                {
+                    <MudText>Είσοδος</MudText>
+                }
+            </MudButton>
+        </EditForm>
+
+        <div class="text-center mt-4">
+            <MudLink Href="/change-password" Typo="Typo.body2" Color="Color.Secondary">Ξέχασες ή θέλεις να αλλάξεις τον κωδικό σου;</MudLink>
+        </div>
+
+    </MudPaper>
+</MudContainer>
+
+@code {
+    [Inject] private HttpClient Http { get; set; } = null!;
+    [Inject] private AuthenticationStateProvider AuthStateProvider { get; set; } = null!;
+    [Inject] private NavigationManager NavManager { get; set; } = null!;
+    [Inject] private ISnackbar Snackbar { get; set; } = null!;
+    [Inject] private Blazored.LocalStorage.ILocalStorageService LocalStorage { get; set; } = null!;
+
+    private LoginModel _loginModel = new();
+    private string _errorMessage = string.Empty;
+    private bool _isSubmitting = false;
+
+    // ΜΕΤΑΒΛΗΤΕΣ ΓΙΑ ΤΟ ΜΑΤΑΚΙ ΤΟΥ PASSWORD
+    private bool _passwordShow = false;
+    private InputType _passwordInput = InputType.Password;
+    private string _passwordInputIcon = Icons.Material.Filled.VisibilityOff;
+
+    // ΜΕΘΟΔΟΣ ΠΟΥ ΑΛΛΑΖΕΙ ΤΟ ΜΑΤΑΚΙ
+    private void TogglePasswordVisibility()
+    {
+        if (_passwordShow)
+        {
+            _passwordShow = false;
+            _passwordInputIcon = Icons.Material.Filled.VisibilityOff;
+            _passwordInput = InputType.Password;
+        }
+        else
+        {
+            _passwordShow = true;
+            _passwordInputIcon = Icons.Material.Filled.Visibility;
+            _passwordInput = InputType.Text;
+        }
+    }
+
+    private async Task HandleLogin()
+    {
+        _isSubmitting = true;
+        _errorMessage = string.Empty;
+
+        try
+        {
+            var request = new HttpRequestMessage(HttpMethod.Post, "api/Users/login");
+            request.Content = JsonContent.Create(new { username = _loginModel.Username, password = _loginModel.Password });
+            request.Headers.Add("X-Tenant-Id", _loginModel.TenantId.ToLower().Trim());
+
+            var response = await Http.SendAsync(request);
+
+            if (response.IsSuccessStatusCode)
+            {
+                var result = await response.Content.ReadFromJsonAsync<LoginResponse>();
+
+                var currentTenant = _loginModel.TenantId?.ToLower().Trim();
+
+                await LocalStorage.SetItemAsync("tenantId", currentTenant);
+
+                // ΕΛΕΓΧΟΣ ΓΙΑ ΠΡΩΤΗ ΣΥΝΔΕΣΗ ΧΡΗΣΤΗ (FIRST LOGIN FORCE REDIRECT)
+                if (result!.IsFirstLogin)
+                {
+                    Snackbar.Add("Απαιτείται αλλαγή κωδικού πρόσβασης κατά την πρώτη σύνδεση.", Severity.Warning);
+                    NavManager.NavigateTo($"/change-password?tenant={Uri.EscapeDataString(currentTenant ?? "")}");
+                }
+                else
+                {
+                    // Για τον κανονικό χρήστη, ενεργοποιούμε το Auth κανονικά και πάμε Dashboard
+                    if (AuthStateProvider is CustomAuthStateProvider customAuth)
+                    {
+                        await customAuth.MarkUserAsAuthenticated(result!.Token, result.RefreshToken);
+                    }
+
+                    Snackbar.Add("Επιτυχής σύνδεση!", Severity.Success);
+                    NavManager.NavigateTo("/admin/dashboard");
+                }
+            }
+            else
+            {
+                _errorMessage = "Λάθος στοιχεία σύνδεσης ή το κατάστημα δεν υπάρχει.";
+            }
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = $"Σφάλμα δικτύου: {ex.Message}";
+        }
+        finally
+        {
+            _isSubmitting = false;
+        }
+    }
+
+    public class LoginResponse
+    {
+        public string Token { get; set; } = string.Empty;
+        public string RefreshToken { get; set; } = string.Empty;
+        public bool IsFirstLogin { get; set; }
+    }
+}

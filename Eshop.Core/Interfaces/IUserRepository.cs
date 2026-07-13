@@ -10,5 +10,9 @@ namespace Eshop.Core.Interfaces
         Task AddRefreshTokenAsync(RefreshToken token);
         void RemoveRefreshToken(RefreshToken token);
         Task SaveChangesAsync();
+        Task<bool> ChangePasswordAsync(string username, string currentPassword, string newPassword, string tenantId);
+        Task AddUserAsync(User user);
+        void UpdateUser(User user);
+        Task<IEnumerable<User>> GetAllUsersAsync();
     }
 }

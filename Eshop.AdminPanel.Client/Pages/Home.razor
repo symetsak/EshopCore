@@ -1,0 +1,22 @@
+﻿@page "/"
+@inject AuthenticationStateProvider AuthStateProvider
+@inject NavigationManager NavManager
+
+@code {
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+
+        if (user.Identity is not null && user.Identity.IsAuthenticated)
+        {
+            // Αν είναι ήδη συνδεδεμένος, φύγαμε για το Dashboard
+            NavManager.NavigateTo("/admin/dashboard");
+        }
+        else
+        {
+            // Αν είναι ανώνυμος, φύγαμε για το Login
+            NavManager.NavigateTo("/login");
+        }
+    }
+}

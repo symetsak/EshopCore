@@ -3,6 +3,7 @@
     <File Path="README.md" />
   </Folder>
   <Project Path="Application/Eshop.Application.csproj" />
+  <Project Path="Eshop.AdminPanel.Client/Eshop.AdminPanel.Client.csproj" Id="11ae0044-9985-4299-99e7-1d241b0c1d19" />
   <Project Path="Eshop.API/Eshop.API.csproj" />
   <Project Path="Eshop.Core/Eshop.Core.csproj" />
   <Project Path="Infrastructure/Eshop.Infrastructure.csproj" />
