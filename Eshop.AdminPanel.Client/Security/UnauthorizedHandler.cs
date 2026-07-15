@@ -65,7 +65,8 @@ namespace Eshop.AdminPanel.Client.Security
         {
             try
             {
-                using var client = new HttpClient { BaseAddress = new Uri(_navigationManager.BaseUri) };
+                // Βάζουμε το σωστό URL του API 
+                using var client = new HttpClient { BaseAddress = new Uri("http://localhost:5284/") };
 
                 var tenantId = await _localStorage.GetItemAsync<string>("tenantId");
                 if (!string.IsNullOrEmpty(tenantId))
@@ -73,7 +74,7 @@ namespace Eshop.AdminPanel.Client.Security
                     client.DefaultRequestHeaders.Add("X-Tenant-Id", tenantId);
                 }
 
-                var response = await client.PostAsJsonAsync("api/Users/refresh", new { Token = token, RefreshToken = refreshToken });
+                var response = await client.PostAsJsonAsync("api/Users/refresh", new { RefreshToken = refreshToken });
 
                 if (response.IsSuccessStatusCode)
                 {

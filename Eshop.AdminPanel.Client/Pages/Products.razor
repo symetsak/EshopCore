@@ -174,6 +174,55 @@
             </MudTable>
         </MudTabPanel>
 
+        <MudTabPanel Text="Κουπόνια" Icon="@Icons.Material.Filled.LocalOffer" OnClick="LoadCouponsAsync">
+
+            <MudTable Items="@_coupons" Hover="true" Striped="true" Elevation="0" Loading="@_loadingCoupons">
+                <ToolBarContent>
+                    <MudText Typo="Typo.h6" Class="mr-4">Διαχείριση Κουπονιών</MudText>
+                    <MudButton Variant="Variant.Filled"
+                               Color="Color.Secondary"
+                               StartIcon="@Icons.Material.Filled.Add"
+                               OnClick="() => OpenCouponDialog(null)">
+                        Νέο Κουπόνι
+                    </MudButton>
+                </ToolBarContent>
+                <HeaderContent>
+                    <MudTh>Κωδικός</MudTh>
+                    <MudTh>Τύπος & Έκπτωση</MudTh>
+                    <MudTh>Ελάχιστη Αγορά</MudTh>
+                    <MudTh>Λήξη</MudTh>
+                    <MudTh>Κατάσταση</MudTh>
+                    <MudTh Style="text-align: right;">Ενέργειες</MudTh>
+                </HeaderContent>
+                <RowTemplate Context="coup">
+                    <MudTd DataLabel="Κωδικός"><b>@coup.Code</b></MudTd>
+                    <MudTd DataLabel="Έκπτωση">
+                        @(coup.DiscountType == "Percentage" ? $"{coup.DiscountValue}%" : $"{coup.DiscountValue.ToString("C2")}")
+                    </MudTd>
+                    <MudTd DataLabel="Ελάχιστη Αγορά">@coup.MinimumSubTotalRequired.ToString("C2")</MudTd>
+                    <MudTd DataLabel="Λήξη">@coup.EndDate.ToShortDateString()</MudTd>
+                    <MudTd DataLabel="Κατάσταση">
+                        @if (coup.IsActive && coup.EndDate >= DateTime.UtcNow)
+                        {
+                            <MudChip T="string" Color="Color.Success" Size="Size.Small">Ενεργό</MudChip>
+                        }
+                        else
+                        {
+                            <MudChip T="string" Color="Color.Error" Size="Size.Small">Ανενεργό/Ληγμένο</MudChip>
+                        }
+                    </MudTd>
+                    <MudTd DataLabel="Ενέργειες" Style="text-align: right;">
+                        <MudIconButton Icon="@Icons.Material.Filled.Edit" Color="Color.Info" OnClick="() => OpenCouponDialog(coup)" />
+                        <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" OnClick="() => ConfirmDeleteCoupon(coup)" />
+                    </MudTd>
+                </RowTemplate>
+                <NoRecordsContent>
+                    <MudText Typo="Typo.body2" Class="pa-4 text-center">Δεν βρέθηκαν κουπόνια.</MudText>
+                </NoRecordsContent>
+            </MudTable>
+
+        </MudTabPanel>
+
     </MudTabs>
 </MudContainer>
 
@@ -182,6 +231,8 @@
     private string _searchString = "";
     private List<CategoryDto> _categories = new();
     private bool _loadingCategories = false;
+    private List<CouponDto> _coupons = new();
+    private bool _loadingCoupons = false;
 
     private async Task<TableData<ProductResponseModel>> ServerReload(TableState state, System.Threading.CancellationToken cancellationToken)
     {
@@ -404,10 +455,99 @@
         await JS.InvokeVoidAsync("open", imageUrl, "_blank");
     }
 
+    private async Task LoadCouponsAsync()
+    {
+        _loadingCoupons = true;
+        try
+        {
+            var request = new HttpRequestMessage(HttpMethod.Get, "api/Coupons");
+            var tenantId = await LocalStorage.GetItemAsync<string>("tenantId");
+            var token = await LocalStorage.GetItemAsync<string>("authToken");
+
+            if (!string.IsNullOrEmpty(tenantId)) request.Headers.Add("X-Tenant-Id", tenantId);
+            if (!string.IsNullOrEmpty(token)) request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+            var response = await Http.SendAsync(request);
+            if (response.IsSuccessStatusCode)
+            {
+                _coupons = await response.Content.ReadFromJsonAsync<List<CouponDto>>() ?? new();
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Σφάλμα φόρτωσης κουπονιών: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _loadingCoupons = false;
+            StateHasChanged();
+        }
+    }
+
+    // Το αλλάζουμε για να δέχεται null (για νέο) ή ένα CouponDto (για edit)
+    private async Task OpenCouponDialog(CouponDto? coupon = null)
+    {
+        var parameters = new DialogParameters { ["CouponToEdit"] = coupon };
+        var options = new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.Small, FullWidth = true };
+
+        var dialog = await DialogService.ShowAsync<CouponDialog>("", parameters, options);
+        var result = await dialog.Result;
+
+        if (result != null && !result.Canceled)
+        {
+            await LoadCouponsAsync();
+        }
+    }
+
+    private async Task ConfirmDeleteCoupon(CouponDto coupon)
+    {
+        var confirmed = await JS.InvokeAsync<bool>("confirm", $"Είστε σίγουροι ότι θέλετε να διαγράψετε το κουπόνι '{coupon.Code}';");
+
+        if (confirmed)
+        {
+            try
+            {
+                var request = new HttpRequestMessage(HttpMethod.Delete, $"api/Coupons/{coupon.Id}");
+                var tenantId = await LocalStorage.GetItemAsync<string>("tenantId");
+                var token = await LocalStorage.GetItemAsync<string>("authToken");
+
+                if (!string.IsNullOrEmpty(tenantId)) request.Headers.Add("X-Tenant-Id", tenantId);
+                if (!string.IsNullOrEmpty(token)) request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+                var response = await Http.SendAsync(request);
+                if (response.IsSuccessStatusCode)
+                {
+                    Snackbar.Add("Το κουπόνι διαγράφηκε επιτυχώς!", Severity.Success);
+                    await LoadCouponsAsync();
+                }
+                else
+                {
+                    Snackbar.Add("Αποτυχία διαγραφής κουπονιού.", Severity.Error);
+                }
+            }
+            catch (Exception ex)
+            {
+                Snackbar.Add($"Σφάλμα: {ex.Message}", Severity.Error);
+            }
+        }
+    }
+
     public class CategoryDto
     {
         public int Id { get; set; }
         public string Name { get; set; } = string.Empty;
         public int DisplayOrder { get; set; }
+    }
+
+    public class CouponDto
+    {
+        public int Id { get; set; }
+        public string Code { get; set; } = string.Empty;
+        public string DiscountType { get; set; } = string.Empty;
+        public decimal DiscountValue { get; set; }
+        public decimal MinimumSubTotalRequired { get; set; }
+        public DateTime StartDate { get; set; }
+        public DateTime EndDate { get; set; }
+        public bool IsActive { get; set; }
     }
 }

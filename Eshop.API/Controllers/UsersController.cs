@@ -33,7 +33,7 @@ namespace Eshop.API.Controllers
             return Ok(response);
         }
 
-        [Authorize]
+        [AllowAnonymous]
         [HttpPost("refresh")]
         public async Task<IActionResult> Refresh([FromBody] RefreshTokenRequestDto request)
         {
