@@ -1,0 +1,413 @@
+﻿@page "/admin/products"
+@attribute [Authorize(Roles = "Administrator")]
+@inject IDialogService DialogService
+@inject HttpClient Http
+@inject ISnackbar Snackbar
+@inject IJSRuntime JS
+@inject Blazored.LocalStorage.ILocalStorageService LocalStorage
+@using System.Net.Http.Headers
+
+<MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="mt-8">
+    <div class="d-flex justify-space-between align-center mb-6">
+        <MudText Typo="Typo.h3" Class="font-weight-bold" Color="Color.Primary">Διαχείριση Καταστήματος</MudText>
+    </div>
+
+    <MudTabs Elevation="3" Rounded="true" ApplyEffectsToContainer="true" PanelClass="pa-6" Color="Color.Primary" Style="border-radius: 12px;">
+        
+        <MudTabPanel Text="Προϊόντα" Icon="@Icons.Material.Filled.ShoppingBag">
+
+            <MudTable T="ProductResponseModel" ServerData="ServerReload" Dense="true" Hover="true" Bordered="false" Striped="true" @ref="_table" Elevation="0">
+                <ToolBarContent>
+                    <MudText Typo="Typo.h6" Class="mr-4">Λίστα Προϊόντων</MudText>
+
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" OnClick="OpenCreateDialog">
+                        Νέο Προϊόν
+                    </MudButton>
+
+                    <MudSpacer /> 
+
+                    <MudTextField T="string" ValueChanged="@(s => OnSearch(s))" Placeholder="Αναζήτηση με όνομα..."
+                                  Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search" IconSize="Size.Medium" Class="mt-0" Clearable="true" />
+                </ToolBarContent>
+                <HeaderContent>
+                    <MudTh>Εικόνα</MudTh>
+                    <MudTh>Όνομα</MudTh>
+                    <MudTh>Κατηγορία</MudTh> 
+                    <MudTh>Τιμή</MudTh>
+                    <MudTh>Τιμή Προσφοράς</MudTh>
+                    <MudTh>Απόθεμα</MudTh>
+                    <MudTh Style="text-align: right;">Ενέργειες</MudTh>
+                </HeaderContent>
+                <RowTemplate>
+                    <MudTd DataLabel="Εικόνα">
+                        @if (!string.IsNullOrEmpty(context.ImageUrl))
+                        {
+                            var absoluteImageUrl = context.ImageUrl.StartsWith("http", StringComparison.OrdinalIgnoreCase)
+                                ? context.ImageUrl
+                                : $"http://localhost:5284{context.ImageUrl}";
+
+                            <button type="button" @onclick="() => OpenImagePreview(absoluteImageUrl, context.Name)"
+                                    style="background: none; border: none; padding: 0; cursor: pointer; transition: transform 0.2s;"
+                                    onmouseover="this.style.transform='scale(1.1)'"
+                                    onmouseout="this.style.transform='scale(1)'">
+                                <img src="@absoluteImageUrl" alt="@context.Name" style="width: 50px; height: 50px; object-fit: cover; border-radius: 8px; border: 1px solid var(--mud-palette-lines-inputs);" />
+                            </button>
+                        }
+                        else
+                        {
+                            <div class="d-flex align-center justify-center" style="width: 50px; height: 50px; background-color: var(--mud-palette-background-grey); border-radius: 8px;">
+                                <MudIcon Icon="@Icons.Material.Filled.Image" Color="Color.Secondary" Size="Size.Medium" />
+                            </div>
+                        }
+                    </MudTd>
+                    <MudTd DataLabel="Όνομα">
+                        @if (!string.IsNullOrEmpty(context.Description))
+                        {
+                            <MudTooltip Text="@context.Description"
+                                        Arrow="true"
+                                        Placement="Placement.Top"
+                                        Color="Color.Dark">
+                                <span class="font-weight-bold"
+                                      style="cursor: help; border-bottom: 1px dashed var(--mud-palette-text-secondary); padding-bottom: 2px;">
+                                    @context.Name
+                                </span>
+                            </MudTooltip>
+                        }
+                        else
+                        {
+                            <span class="font-weight-bold">@context.Name</span>
+                        }
+                    </MudTd>
+                    <MudTd DataLabel="Κατηγορία">
+                        <MudChip T="string" Color="Color.Info" Size="Size.Small" Variant="Variant.Text">
+                            @(context.CategoryName ?? "Χωρίς Κατηγορία")
+                        </MudChip>
+                    </MudTd>
+                    <MudTd DataLabel="Τιμή">
+                        @if (context.SalePrice.HasValue)
+                        {
+                            <span style="text-decoration: line-through; color: var(--mud-palette-text-secondary);">@context.OriginalPrice.ToString("C2")</span>
+                        }
+                        else
+                        {
+                            <span class="font-weight-bold">@context.OriginalPrice.ToString("C2")</span>
+                        }
+                    </MudTd>
+                    <MudTd DataLabel="Τιμή Προσφοράς">
+                        @if (context.SalePrice.HasValue)
+                        {
+                            <MudChip T="string" Color="Color.Error" Size="Size.Small" Variant="Variant.Filled" Class="font-weight-bold">
+                                @context.SalePrice.Value.ToString("C2")
+                            </MudChip>
+                        }
+                        else
+                        {
+                            <span class="mud-text-secondary">-</span>
+                        }
+                    </MudTd>
+                    <MudTd DataLabel="Απόθεμα">
+                        @if (context.StockQuantity == 0)
+                        {
+                            <MudChip T="string" Color="Color.Error" Size="Size.Small">Εξαντλήθηκε</MudChip>
+                        }
+                        else if (context.StockQuantity < 5)
+                        {
+                            <MudChip T="string" Color="Color.Warning" Size="Size.Small">Χαμηλό (@context.StockQuantity)</MudChip>
+                        }
+                        else
+                        {
+                            <MudChip T="string" Color="Color.Success" Size="Size.Small">@context.StockQuantity</MudChip>
+                        }
+                    </MudTd>
+                    <MudTd DataLabel="Ενέργειες" Style="text-align: right;">
+                        <MudMenu Icon="@Icons.Material.Filled.MoreVert" Color="Color.Secondary">
+                            <MudMenuItem Icon="@Icons.Material.Filled.Edit" OnClick="@(() => OpenEditDialog(context))">Επεξεργασία</MudMenuItem>
+                            <MudMenuItem Icon="@Icons.Material.Filled.LocalOffer" OnClick="@(() => OpenDiscountDialog(context))">Προσφορά</MudMenuItem>
+                            <MudMenuItem Icon="@Icons.Material.Filled.CloudUpload" OnClick="@(() => OpenImageDialog(context))">Εικόνα</MudMenuItem>
+                            <MudDivider />
+                            <MudMenuItem Icon="@Icons.Material.Filled.Delete" OnClick="@(() => ConfirmDelete(context))">
+                                <span class="text-danger">Διαγραφή</span>
+                            </MudMenuItem>
+                        </MudMenu>
+                    </MudTd>
+                </RowTemplate>
+                <NoRecordsContent>
+                    <MudText Class="pa-4">Δεν βρέθηκαν προϊόντα.</MudText>
+                </NoRecordsContent>
+                <LoadingContent>
+                    <MudText Class="pa-4">Φόρτωση προϊόντων...</MudText>
+                </LoadingContent>
+                <PagerContent>
+                    <MudTablePager RowsPerPageString="Προϊόντα ανά σελίδα:" InfoFormat="{first_item}-{last_item} από {all_items}" />
+                </PagerContent>
+            </MudTable>
+        </MudTabPanel>
+
+        <MudTabPanel Text="Κατηγορίες" Icon="@Icons.Material.Filled.Category" OnClick="LoadCategoriesAsync">
+
+            <MudTable Items="@_categories" Hover="true" Striped="true" Elevation="0" Loading="@_loadingCategories">
+                <ToolBarContent>
+                    <MudText Typo="Typo.h6" Class="mr-4">Διαχείριση Κατηγοριών</MudText>
+
+                    <MudButton Variant="Variant.Filled" Color="Color.Success" StartIcon="@Icons.Material.Filled.Add" OnClick="() => OpenCategoryDialog(null)">
+                        Νέα Κατηγορία
+                    </MudButton>
+                </ToolBarContent>
+                <HeaderContent>
+                    <MudTh>ID</MudTh>
+                    <MudTh>Όνομα Κατηγορίας</MudTh>
+                    <MudTh>Σειρά Εμφάνισης</MudTh>
+                    <MudTh Style="text-align: right;">Ενέργειες</MudTh>
+                </HeaderContent>
+                <RowTemplate Context="cat">
+                    <MudTd DataLabel="ID">@cat.Id</MudTd>
+                    <MudTd DataLabel="Όνομα"><b>@cat.Name</b></MudTd>
+                    <MudTd DataLabel="Σειρά Εμφάνισης">@cat.DisplayOrder</MudTd>
+                    <MudTd DataLabel="Ενέργειες" Style="text-align: right;">
+                        <MudIconButton Icon="@Icons.Material.Filled.Edit" Color="Color.Info" OnClick="() => OpenCategoryDialog(cat)" />
+                        <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" OnClick="() => ConfirmDeleteCategory(cat)" />
+                    </MudTd>
+                </RowTemplate>
+                <NoRecordsContent>
+                    <MudText Typo="Typo.body2" Class="pa-4 text-center">Δεν βρέθηκαν κατηγορίες.</MudText>
+                </NoRecordsContent>
+            </MudTable>
+        </MudTabPanel>
+
+    </MudTabs>
+</MudContainer>
+
+@code {
+    private MudTable<ProductResponseModel> _table = null!;
+    private string _searchString = "";
+    private List<CategoryDto> _categories = new();
+    private bool _loadingCategories = false;
+
+    private async Task<TableData<ProductResponseModel>> ServerReload(TableState state, System.Threading.CancellationToken cancellationToken)
+    {
+        try
+        {
+            var pageNumber = state.Page + 1;
+            var pageSize = state.PageSize;
+
+            var url = $"api/Products?PageNumber={pageNumber}&PageSize={pageSize}";
+            if (!string.IsNullOrEmpty(_searchString))
+            {
+                url += $"&SearchTerm={Uri.EscapeDataString(_searchString)}";
+            }
+
+            var request = new HttpRequestMessage(HttpMethod.Get, url);
+
+            var tenantId = await LocalStorage.GetItemAsync<string>("tenantId");
+            var token = await LocalStorage.GetItemAsync<string>("authToken");
+
+            if (!string.IsNullOrEmpty(tenantId)) request.Headers.Add("X-Tenant-Id", tenantId);
+            if (!string.IsNullOrEmpty(token)) request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+            var response = await Http.SendAsync(request);
+
+            if (response.IsSuccessStatusCode)
+            {
+                var result = await response.Content.ReadFromJsonAsync<PagedResultModel<ProductResponseModel>>();
+                if (result != null)
+                {
+                    return new TableData<ProductResponseModel>()
+                    {
+                        TotalItems = result.TotalCount,
+                        Items = result.Items
+                    };
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Σφάλμα φόρτωσης προϊόντων: {ex.Message}", Severity.Error);
+        }
+
+        return new TableData<ProductResponseModel>() { Items = Array.Empty<ProductResponseModel>(), TotalItems = 0 };
+    }
+
+    private async Task LoadCategoriesAsync()
+    {
+        _loadingCategories = true;
+        try
+        {
+            var request = new HttpRequestMessage(HttpMethod.Get, "api/categories");
+            var tenantId = await LocalStorage.GetItemAsync<string>("tenantId");
+            var token = await LocalStorage.GetItemAsync<string>("authToken");
+
+            if (!string.IsNullOrEmpty(tenantId)) request.Headers.Add("X-Tenant-Id", tenantId);
+            if (!string.IsNullOrEmpty(token)) request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+            var response = await Http.SendAsync(request);
+            if (response.IsSuccessStatusCode)
+            {
+                _categories = await response.Content.ReadFromJsonAsync<List<CategoryDto>>() ?? new();
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Σφάλμα φόρτωσης κατηγοριών: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _loadingCategories = false;
+            StateHasChanged();
+        }
+    }
+
+    private void OnSearch(string text)
+    {
+        _searchString = text;
+        _table.ReloadServerData();
+    }
+
+    private async Task OpenCreateDialog()
+    {
+        var options = new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.Small, FullWidth = true };
+        var dialog = await DialogService.ShowAsync<ProductDialog>("Νέο Προϊόν", options);
+        var result = await dialog.Result;
+
+        if (result != null && !result.Canceled)
+        {
+            await _table.ReloadServerData();
+        }
+    }
+
+    private async Task OpenEditDialog(ProductResponseModel product)
+    {
+        var parameters = new DialogParameters { ["ProductToEdit"] = product };
+        var options = new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.Small, FullWidth = true };
+
+        var dialog = await DialogService.ShowAsync<ProductDialog>("Επεξεργασία", parameters, options);
+        var result = await dialog.Result;
+
+        if (result != null && !result.Canceled)
+        {
+            await _table.ReloadServerData();
+        }
+    }
+
+    private async Task OpenDiscountDialog(ProductResponseModel product)
+    {
+        var parameters = new DialogParameters { ["Product"] = product };
+        var options = new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.Small, FullWidth = true };
+
+        var dialog = await DialogService.ShowAsync<DiscountDialog>("Εφαρμογή Προσφοράς", parameters, options);
+        var result = await dialog.Result;
+
+        if (result != null && !result.Canceled)
+        {
+            await _table.ReloadServerData();
+            StateHasChanged();
+        }
+    }
+
+    private async Task OpenImageDialog(ProductResponseModel product)
+    {
+        var parameters = new DialogParameters { ["Product"] = product };
+        var options = new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.Small, FullWidth = true };
+
+        var dialog = await DialogService.ShowAsync<ImageUploadDialog>("Διαχείριση Εικόνας", parameters, options);
+        var result = await dialog.Result;
+
+        if (result != null && !result.Canceled)
+        {
+            await _table.ReloadServerData();
+        }
+    }
+
+    private async Task ConfirmDelete(ProductResponseModel product)
+    {
+        var confirmed = await JS.InvokeAsync<bool>("confirm", $"Θέλετε πραγματικά να διαγράψετε το προϊόν '{product.Name}';");
+
+        if (confirmed)
+        {
+            try
+            {
+                var request = new HttpRequestMessage(HttpMethod.Delete, $"api/Products/{product.Id}");
+                var tenantId = await LocalStorage.GetItemAsync<string>("tenantId");
+                var token = await LocalStorage.GetItemAsync<string>("authToken");
+
+                if (!string.IsNullOrEmpty(tenantId)) request.Headers.Add("X-Tenant-Id", tenantId);
+                if (!string.IsNullOrEmpty(token)) request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+                var response = await Http.SendAsync(request);
+
+                if (response.IsSuccessStatusCode)
+                {
+                    Snackbar.Add("Το προϊόν διαγράφηκε επιτυχώς!", Severity.Success);
+                    await _table.ReloadServerData();
+                }
+                else
+                {
+                    Snackbar.Add("Αποτυχία διαγραφής προϊόντος.", Severity.Error);
+                }
+            }
+            catch (Exception ex)
+            {
+                Snackbar.Add($"Σφάλμα: {ex.Message}", Severity.Error);
+            }
+        }
+    }
+
+    private async Task OpenCategoryDialog(CategoryDto? category)
+    {
+        var parameters = new DialogParameters { ["CategoryToEdit"] = category };
+        var options = new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.ExtraSmall, FullWidth = true };
+
+        var dialog = await DialogService.ShowAsync<CategoryDialog>("", parameters, options);
+        var result = await dialog.Result;
+
+        if (dialog != null && result != null && !result.Canceled)
+        {
+            await LoadCategoriesAsync();
+        }
+    }
+
+    private async Task ConfirmDeleteCategory(CategoryDto category)
+    {
+        var confirmed = await JS.InvokeAsync<bool>("confirm", $"Είστε σίγουροι ότι θέλετε να διαγράψετε την κατηγορία '{category.Name}';");
+
+        if (confirmed)
+        {
+            try
+            {
+                var request = new HttpRequestMessage(HttpMethod.Delete, $"api/categories/{category.Id}");
+                var tenantId = await LocalStorage.GetItemAsync<string>("tenantId");
+                var token = await LocalStorage.GetItemAsync<string>("authToken");
+
+                if (!string.IsNullOrEmpty(tenantId)) request.Headers.Add("X-Tenant-Id", tenantId);
+                if (!string.IsNullOrEmpty(token)) request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+                var response = await Http.SendAsync(request);
+                if (response.IsSuccessStatusCode)
+                {
+                    Snackbar.Add("Η κατηγορία διαγράφηκε επιτυχώς!", Severity.Success);
+                    await LoadCategoriesAsync();
+                }
+                else
+                {
+                    var error = await response.Content.ReadAsStringAsync();
+                    Snackbar.Add($"Αποτυχία διαγραφής: {error}", Severity.Error);
+                }
+            }
+            catch (Exception ex)
+            {
+                Snackbar.Add($"Σφάλμα: {ex.Message}", Severity.Error);
+            }
+        }
+    }
+
+    private async Task OpenImagePreview(string imageUrl, string productName)
+    {
+        await JS.InvokeVoidAsync("open", imageUrl, "_blank");
+    }
+
+    public class CategoryDto
+    {
+        public int Id { get; set; }
+        public string Name { get; set; } = string.Empty;
+        public int DisplayOrder { get; set; }
+    }
+}

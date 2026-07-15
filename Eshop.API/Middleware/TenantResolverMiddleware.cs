@@ -1,11 +1,6 @@
 ﻿using Eshop.Core.Interfaces;
 using Eshop.Infrastructure.Data;
-using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.DependencyInjection;
-using System;
-using System.Linq;
-using System.Threading.Tasks;
 
 namespace Eshop.API.Middleware
 {
@@ -38,6 +33,7 @@ namespace Eshop.API.Middleware
             if (path == "/" ||
                 path.Contains("swagger") ||
                 path.Contains("favicon") ||
+                path.Contains("uploads") ||
                 (path.Contains("tenants") && method == "POST"))
             {
                 await _next(context);

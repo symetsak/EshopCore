@@ -1,0 +1,253 @@
+﻿@using System.Net.Http.Headers
+@inject HttpClient Http
+@inject ISnackbar Snackbar
+@inject Blazored.LocalStorage.ILocalStorageService LocalStorage
+@inject IDialogService DialogService 
+
+<MudDialog>
+    <TitleContent>
+        <MudText Typo="Typo.h6">
+            <MudIcon Icon="@(IsEdit ? Icons.Material.Filled.Edit : Icons.Material.Filled.Add)" Class="mr-2" />
+            @(IsEdit ? "Επεξεργασία Προϊόντος" : "Προσθήκη Νέου Προϊόντος")
+        </MudText>
+    </TitleContent>
+    <DialogContent>
+        <EditForm Model="@_model" OnValidSubmit="HandleSubmit">
+            <DataAnnotationsValidator />
+
+            <MudGrid>
+                <MudItem XS="12">
+                    <MudTextField Label="Όνομα Προϊόντος" @bind-Value="_model.Name"
+                                  For="@(() => _model.Name)" Required="true" Variant="Variant.Outlined" />
+                </MudItem>
+
+                <MudItem XS="12">
+                    <MudTextField Label="Περιγραφή" @bind-Value="_model.Description"
+                                  For="@(() => _model.Description)" Lines="3" Variant="Variant.Outlined" />
+                </MudItem>
+
+                <MudItem XS="12" SM="6">
+                    <MudNumericField T="decimal" Label="Αρχική Τιμή (€)" @bind-Value="_model.Price"
+                                     Format="N2" Min="0.01m" Required="true" Variant="Variant.Outlined" />
+                </MudItem>
+
+                <MudItem XS="12" SM="6">
+                    <MudNumericField T="int" Label="Απόθεμα" @bind-Value="_model.StockQuantity"
+                                     For="@(() => _model.StockQuantity)" Min="0" Required="true" Variant="Variant.Outlined" />
+                </MudItem>
+
+                <MudItem XS="12">
+                    <div class="d-flex align-center gap-2">
+                        <div class="flex-grow-1">
+                            <MudSelect T="int" Label="Κατηγορία" @bind-Value="_model.CategoryId" Variant="Variant.Outlined" Required="true">
+                                @if (_categories != null && _categories.Any())
+                                {
+                                    @foreach (var category in _categories)
+                                    {
+                                        <MudSelectItem T="int" Value="@category.Id">@category.Name</MudSelectItem>
+                                    }
+                                }
+                                else
+                                {
+                                    <MudSelectItem T="int" Value="0" Disabled="true">Φόρτωση κατηγοριών...</MudSelectItem>
+                                }
+                            </MudSelect>
+                        </div>
+                        
+                        <MudIconButton Icon="@Icons.Material.Filled.Add" 
+                                       Color="Color.Primary" 
+                                       Variant="Variant.Filled" 
+                                       Size="Size.Medium"
+                                       Style="height: 56px; width: 56px;"
+                                       OnClick="OpenCreateCategoryDialogAsync"
+                                       Title="Προσθήκη Νέας Κατηγορίας" />
+                    </div>
+                </MudItem>
+            </MudGrid>
+        </EditForm>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel" Variant="Variant.Text">Ακύρωση</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="HandleSubmit" Disabled="_isSaving">
+            @if (_isSaving)
+            {
+                <MudProgressCircular Class="ms-n1" Size="Size.Small" Indeterminate="true" />
+                <span class="ms-2">Αποθήκευση...</span>
+            }
+            else
+            {
+                <span>Αποθήκευση</span>
+            }
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] IMudDialogInstance MudDialog { get; set; } = null!;
+
+    [Parameter] public ProductResponseModel? ProductToEdit { get; set; }
+
+    private ProductCreateUpdateModel _model = new();
+    private List<CategoryDto> _categories = new();
+    private bool _isSaving = false;
+    private bool IsEdit => ProductToEdit != null;
+
+    // ΤΡΕΧΕΙ ΣΥΓΧΡΟΝΑ: Γεμίζουμε αμέσως το μοντέλο για να εμφανιστούν οι τιμές στην οθόνη χωρίς delay!
+    protected override void OnInitialized()
+    {
+        InitializeModel();
+    }
+
+    // ΤΡΕΧΕΙ ΜΟΝΟ ΣΤΟΝ CLIENT: Εδώ είναι 100% ασφαλές να καλέσουμε το LocalStorage και το API
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            _isSaving = true;
+            await LoadCategoriesAsync();
+            
+            // Αν είναι νέο προϊόν και φορτώσαμε κατηγορίες, επιλέγουμε την πρώτη ως default
+            if (!IsEdit && _categories.Any())
+            {
+                _model.CategoryId = _categories.First().Id;
+            }
+            
+            _isSaving = false;
+            StateHasChanged(); // Αναγκάζουμε το UI να ξανασχεδιαστεί με τις κατηγορίες πλέον φορτωμένες!
+        }
+    }
+
+    private void InitializeModel()
+    {
+        if (IsEdit && ProductToEdit != null)
+        {
+            _model = new ProductCreateUpdateModel
+            {
+                Name = ProductToEdit.Name,
+                Description = ProductToEdit.Description,
+                Price = ProductToEdit.OriginalPrice,
+                StockQuantity = ProductToEdit.StockQuantity,
+                CategoryId = ProductToEdit.CategoryId
+            };
+        }
+        else
+        {
+            _model.CategoryId = 1;
+            _model.Price = 10.00m;
+        }
+    }
+
+    private async Task LoadCategoriesAsync()
+    {
+        try
+        {
+            var request = new HttpRequestMessage(HttpMethod.Get, "api/Categories"); 
+
+            var tenantId = await LocalStorage.GetItemAsync<string>("tenantId");
+            var token = await LocalStorage.GetItemAsync<string>("authToken");
+
+            if (!string.IsNullOrEmpty(tenantId)) request.Headers.Add("X-Tenant-Id", tenantId);
+            if (!string.IsNullOrEmpty(token)) request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+            var response = await Http.SendAsync(request);
+
+            if (response.IsSuccessStatusCode)
+            {
+                var data = await response.Content.ReadFromJsonAsync<List<CategoryDto>>();
+                _categories = data ?? new List<CategoryDto>();
+            }
+            else
+            {
+                var errorMsg = await response.Content.ReadAsStringAsync();
+                Snackbar.Add($"Αδυναμία ανάκτησης κατηγοριών: {errorMsg}", Severity.Warning);
+                _categories = new List<CategoryDto>();
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading categories: {ex.Message}");
+            Snackbar.Add($"Σφάλμα φόρτωσης κατηγοριών: {ex.Message}", Severity.Error);
+            _categories = new List<CategoryDto>();
+        }
+    }
+
+    private async Task OpenCreateCategoryDialogAsync()
+    {
+        var parameters = new DialogParameters { ["CategoryToEdit"] = null }; 
+        var options = new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.ExtraSmall, FullWidth = true };
+
+        // Καλούμε το κοινό CategoryDialog!
+        var dialog = await DialogService.ShowAsync<CategoryDialog>("", parameters, options);
+        var result = await dialog.Result;
+
+        if (dialog != null && result != null && !result.Canceled)
+        {
+            await LoadCategoriesAsync();
+            var newestCategory = _categories.OrderByDescending(c => c.Id).FirstOrDefault();
+            if (newestCategory != null)
+            {
+                _model.CategoryId = newestCategory.Id;
+            }
+            StateHasChanged();
+        }
+    }
+
+    private async Task HandleSubmit()
+    {
+        _isSaving = true;
+        try
+        {
+            HttpResponseMessage response;
+            var tenantId = await LocalStorage.GetItemAsync<string>("tenantId");
+            var token = await LocalStorage.GetItemAsync<string>("authToken");
+
+            if (IsEdit)
+            {
+                var request = new HttpRequestMessage(HttpMethod.Put, $"api/Products/{ProductToEdit!.Id}");
+                request.Content = JsonContent.Create(_model);
+
+                if (!string.IsNullOrEmpty(tenantId)) request.Headers.Add("X-Tenant-Id", tenantId);
+                if (!string.IsNullOrEmpty(token)) request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+                response = await Http.SendAsync(request);
+            }
+            else
+            {
+                var request = new HttpRequestMessage(HttpMethod.Post, "api/Products");
+                request.Content = JsonContent.Create(_model);
+
+                if (!string.IsNullOrEmpty(tenantId)) request.Headers.Add("X-Tenant-Id", tenantId);
+                if (!string.IsNullOrEmpty(token)) request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+                response = await Http.SendAsync(request);
+            }
+
+            if (response.IsSuccessStatusCode)
+            {
+                Snackbar.Add(IsEdit ? "Το προϊόν ενημερώθηκε!" : "Το προϊόν δημιουργήθηκε με επιτυχία!", Severity.Success);
+                MudDialog.Close(DialogResult.Ok(true));
+            }
+            else
+            {
+                var errorMsg = await response.Content.ReadAsStringAsync();
+                Snackbar.Add($"Αποτυχία αποθήκευσης: {errorMsg}", Severity.Error);
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Σφάλμα: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _isSaving = false;
+        }
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+
+    public class CategoryDto
+    {
+        public int Id { get; set; }
+        public string Name { get; set; } = string.Empty;
+    }
+}

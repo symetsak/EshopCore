@@ -48,7 +48,7 @@ if (app.Environment.IsDevelopment())
     app.UseSwagger();
     app.UseSwaggerUI();
 }
-
+app.UseStaticFiles();
 // app.UseHttpsRedirection(); // Σε σχόλιο για το local stripe testing
 app.UseRouting();
 app.UseCors();

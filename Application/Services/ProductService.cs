@@ -182,5 +182,22 @@ namespace Eshop.Application.Services
             _productRepo.Update(product);
             await _productRepo.SaveChangesAsync();
         }
+
+        public async Task RemoveDiscountAsync(int id)
+        {
+            // Φέρνουμε το προϊόν από τη βάση (βάλε το όνομα της δικής σου μεθόδου αν διαφέρει π.χ. GetByIdAsync)
+            var product = await _productRepo.GetByIdAsync(id);
+            if (product == null)
+                throw new KeyNotFoundException("Το προϊόν δεν βρέθηκε.");
+
+            // Μηδενίζουμε τις τιμές της προσφοράς
+            product.SalePrice = null;
+            product.SaleStartDate = null;
+            product.SaleEndDate = null;
+
+            // Κάνουμε Update και Save στη βάση
+            _productRepo.Update(product);
+            await _productRepo.SaveChangesAsync();
+        }
     }
 }
