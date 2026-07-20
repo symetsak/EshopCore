@@ -109,7 +109,7 @@ namespace Eshop.API.Controllers
 
         // GET: api/orders/admin/dashboard
         [HttpGet("admin/dashboard")]
-        [Authorize(Roles = "Administrator")] // Μόνο ο Admin βλέπει τζίρους!
+        [Authorize] 
         public async Task<IActionResult> GetDashboardStats()
         {
             var stats = await _orderService.GetAdminDashboardStatsAsync();

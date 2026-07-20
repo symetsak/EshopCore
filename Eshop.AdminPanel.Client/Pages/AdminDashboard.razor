@@ -1,11 +1,12 @@
 ﻿@page "/admin/dashboard"
-@attribute [Authorize(Roles = "Administrator")]
+@attribute [Authorize(Roles = "Administrator, Employee")]
 @inject HttpClient Http
 @inject ISnackbar Snackbar
 @inject Blazored.LocalStorage.ILocalStorageService LocalStorage
+@inject AuthenticationStateProvider AuthStateProvider
 
 <MudContainer MaxWidth="MaxWidth.Large" Class="mt-8">
-    
+
     <MudText Typo="Typo.h3" Class="font-weight-bold mb-6" Color="Color.Primary">Admin Dashboard</MudText>
 
     @if (_isLoading)
@@ -22,19 +23,26 @@
     }
     else
     {
+        <!-- ΠΑΝΩ ΚΑΡΤΕΣ (Στατιστικά) -->
         <MudGrid Class="mb-8">
-            
-            <MudItem XS="12" SM="4">
-                <MudPaper Class="pa-6 d-flex align-center justify-space-between" Elevation="3" Style="border-left: 6px solid var(--mud-palette-success); border-radius: 12px;">
-                    <div>
-                        <MudText Typo="Typo.subtitle2" Class="mud-text-secondary">Συνολικός Τζίρος</MudText>
-                        <MudText Typo="Typo.h4" Class="font-weight-bold mt-1" Color="Color.Success">@_stats.TotalRevenue.ToString("C2")</MudText>
-                    </div>
-                    <MudIcon Icon="@Icons.Material.Filled.AttachMoney" Color="Color.Success" Style="font-size: 3rem;" />
-                </MudPaper>
-            </MudItem>
 
-            <MudItem XS="12" SM="4">
+            <!-- Ο Τζίρος εμφανίζεται ΜΟΝΟ στον Administrator -->
+            <AuthorizeView Roles="Administrator">
+                <Authorized>
+                    <MudItem XS="12" SM="4">
+                        <MudPaper Class="pa-6 d-flex align-center justify-space-between" Elevation="3" Style="border-left: 6px solid var(--mud-palette-success); border-radius: 12px;">
+                            <div>
+                                <MudText Typo="Typo.subtitle2" Class="mud-text-secondary">Συνολικός Τζίρος</MudText>
+                                <MudText Typo="Typo.h4" Class="font-weight-bold mt-1" Color="Color.Success">@_stats.TotalRevenue.ToString("C2")</MudText>
+                            </div>
+                            <MudIcon Icon="@Icons.Material.Filled.AttachMoney" Color="Color.Success" Style="font-size: 3rem;" />
+                        </MudPaper>
+                    </MudItem>
+                </Authorized>
+            </AuthorizeView>
+
+            <!-- Οι Παραγγελίες εμφανίζονται σε ΟΛΟΥΣ (Αν είναι Employee πιάνει όλο το πλάτος) -->
+            <MudItem XS="12" SM="@(_isAdmin ? 4 : 12)">
                 <MudPaper Class="pa-6 d-flex align-center justify-space-between" Elevation="3" Style="border-left: 6px solid var(--mud-palette-info); border-radius: 12px;">
                     <div>
                         <MudText Typo="Typo.subtitle2" Class="mud-text-secondary">Συνολικές Παραγγελίες</MudText>
@@ -44,51 +52,67 @@
                 </MudPaper>
             </MudItem>
 
-            <MudItem XS="12" SM="4">
-                <MudPaper Class="pa-6 d-flex align-center justify-space-between" Elevation="3" Style="border-left: 6px solid var(--mud-palette-warning); border-radius: 12px;">
-                    <div>
-                        <MudText Typo="Typo.subtitle2" Class="mud-text-secondary">Μέση Αξία Παραγγελίας (AOV)</MudText>
-                        <MudText Typo="Typo.h4" Class="font-weight-bold mt-1" Color="Color.Warning">@_stats.AverageOrderValue.ToString("C2")</MudText>
-                    </div>
-                    <MudIcon Icon="@Icons.Material.Filled.TrendingUp" Color="Color.Warning" Style="font-size: 3rem;" />
-                </MudPaper>
-            </MudItem>
-            
+            <!-- Η Μέση Αξία εμφανίζεται ΜΟΝΟ στον Administrator -->
+            <AuthorizeView Roles="Administrator">
+                <Authorized>
+                    <MudItem XS="12" SM="4">
+                        <MudPaper Class="pa-6 d-flex align-center justify-space-between" Elevation="3" Style="border-left: 6px solid var(--mud-palette-warning); border-radius: 12px;">
+                            <div>
+                                <MudText Typo="Typo.subtitle2" Class="mud-text-secondary">Μέση Αξία Παραγγελίας (AOV)</MudText>
+                                <MudText Typo="Typo.h4" Class="font-weight-bold mt-1" Color="Color.Warning">@_stats.AverageOrderValue.ToString("C2")</MudText>
+                            </div>
+                            <MudIcon Icon="@Icons.Material.Filled.TrendingUp" Color="Color.Warning" Style="font-size: 3rem;" />
+                        </MudPaper>
+                    </MudItem>
+                </Authorized>
+            </AuthorizeView>
+
         </MudGrid>
 
+        <!-- ΚΑΤΩ ΜΕΡΟΣ (Γραφήματα & Λίστες) -->
         <MudGrid>
-            
-            <MudItem XS="12" MD="5">
-                <MudPaper Class="pa-6" Elevation="3" Style="border-radius: 12px; height: 100%;">
-                    <MudText Typo="Typo.h6" Class="font-weight-bold mb-4">Τζίρος ανά Κατηγορία</MudText>
-                    
-                    @if (_stats.RevenueByCategory.Any())
-                    {
-                        <div class="d-flex justify-center">
-                            <MudChart T="double"
-                                      ChartType="ChartType.Donut"
-                                      Width="280px"
-                                      Height="280px"
-                                      InputData="@_chartData"
-                                      InputLabels="@_chartLabels" />
-                        </div>
-                    }
-                    else
-                    {
-                        <MudText Typo="Typo.body2" Class="mud-text-secondary text-center py-8">Δεν υπάρχουν δεδομένα κατηγοριών.</MudText>
-                    }
-                </MudPaper>
-            </MudItem>
 
-            <MudItem XS="12" MD="7">
+            <!-- Το γράφημα Τζίρου εμφανίζεται ΜΟΝΟ στον Administrator -->
+            <AuthorizeView Roles="Administrator">
+                <Authorized>
+                    <MudItem XS="12" MD="5">
+                        <MudPaper Class="pa-6" Elevation="3" Style="border-radius: 12px; height: 100%;">
+                            <MudText Typo="Typo.h6" Class="font-weight-bold mb-4">Τζίρος ανά Κατηγορία</MudText>
+
+                            @if (_stats.RevenueByCategory.Any())
+                            {
+                                <div class="d-flex justify-center">
+                                    <MudChart T="double"
+                                              ChartType="ChartType.Donut"
+                                              Width="280px"
+                                              Height="280px"
+                                              InputData="@_chartData"
+                                              InputLabels="@_chartLabels" />
+                                </div>
+                            }
+                            else
+                            {
+                                <MudText Typo="Typo.body2" Class="mud-text-secondary text-center py-8">Δεν υπάρχουν δεδομένα κατηγοριών.</MudText>
+                            }
+                        </MudPaper>
+                    </MudItem>
+                </Authorized>
+            </AuthorizeView>
+
+            <!-- Τα Top Προϊόντα εμφανίζονται σε όλους (Αν είναι Employee πιάνει όλο το πλάτος) -->
+            <MudItem XS="12" MD="@(_isAdmin ? 7 : 12)">
                 <MudPaper Class="pa-6" Elevation="3" Style="border-radius: 12px; height: 100%;">
                     <MudText Typo="Typo.h6" Class="font-weight-bold mb-4">Top 3 Προϊόντα σε Πωλήσεις</MudText>
-                    
+
                     <MudTable Items="@_stats.TopProducts" Dense="true" Hover="true" Bordered="false" Striped="true" Elevation="0">
                         <HeaderContent>
                             <MudTh>Προϊόν</MudTh>
                             <MudTh Style="text-align: right;">Τεμάχια</MudTh>
-                            <MudTh Style="text-align: right;">Συνολικός Τζίρος</MudTh>
+                            @if (_isAdmin)
+                            {
+                                // Η στήλη του Τζίρου κρύβεται από τους Employees
+                                <MudTh Style="text-align: right;">Συνολικός Τζίρος</MudTh>
+                            }
                         </HeaderContent>
                         <RowTemplate>
                             <MudTd DataLabel="Προϊόν">
@@ -97,14 +121,17 @@
                             <MudTd DataLabel="Τεμάχια" Style="text-align: right;">
                                 <MudChip T="string" Color="Color.Primary" Size="Size.Small">@context.TotalQuantitySold</MudChip>
                             </MudTd>
-                            <MudTd DataLabel="Συνολικός Τζίρος" Style="text-align: right;" Class="font-weight-bold text-success">
-                                @context.TotalRevenueGenerated.ToString("C2")
-                            </MudTd>
+                            @if (_isAdmin)
+                            {
+                                <MudTd DataLabel="Συνολικός Τζίρος" Style="text-align: right;" Class="font-weight-bold text-success">
+                                    @context.TotalRevenueGenerated.ToString("C2")
+                                </MudTd>
+                            }
                         </RowTemplate>
                     </MudTable>
                 </MudPaper>
             </MudItem>
-            
+
         </MudGrid>
     }
 </MudContainer>
@@ -112,8 +139,8 @@
 @code {
     private AdminDashboardModel? _stats;
     private bool _isLoading = true;
+    private bool _isAdmin = false; // Εδώ αποθηκεύουμε αν είναι Admin
 
-    // Πίνακες για το τάισμα του MudChart (Donut)
     private double[] _chartData = Array.Empty<double>();
     private string[] _chartLabels = Array.Empty<string>();
 
@@ -121,12 +148,16 @@
     {
         try
         {
+            // 0. Ελέγχουμε τον ρόλο του συνδεδεμένου χρήστη
+            var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+            _isAdmin = authState.User.IsInRole("Administrator");
+
             // 1. Φτιάχνουμε το request με το χέρι
             var request = new HttpRequestMessage(HttpMethod.Get, "api/Orders/admin/dashboard");
 
             // 2. Διαβάζουμε το tenantId και το JWT Token από το LocalStorage
             var tenantId = await LocalStorage.GetItemAsync<string>("tenantId");
-            var token = await LocalStorage.GetItemAsync<string>("authToken"); 
+            var token = await LocalStorage.GetItemAsync<string>("authToken");
 
             // 3. Προσθήκη Tenant Header αν υπάρχει
             if (!string.IsNullOrEmpty(tenantId))
@@ -149,7 +180,6 @@
 
                 if (_stats != null)
                 {
-                    // Προετοιμασία δεδομένων για το Donut Chart
                     _chartData = _stats.RevenueByCategory.Select(c => (double)c.TotalRevenue).ToArray();
                     _chartLabels = _stats.RevenueByCategory.Select(c => $"{c.CategoryName} ({c.TotalRevenue.ToString("C0")})").ToArray();
                 }

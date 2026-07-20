@@ -1,0 +1,172 @@
+﻿@using System.Net.Http.Headers
+@using System.Net.Http.Json
+@inject HttpClient Http
+@inject ISnackbar Snackbar
+@inject Blazored.LocalStorage.ILocalStorageService LocalStorage
+
+<MudDialog>
+    <TitleContent>
+        <MudText Typo="Typo.h6">
+            <MudIcon Icon="@(IsEdit ? Icons.Material.Filled.Edit : Icons.Material.Filled.PersonAdd)" Class="mr-2" />
+            @(IsEdit ? "Επεξεργασία Χρήστη" : "Δημιουργία Νέου Admin (Employee)")
+        </MudText>
+    </TitleContent>
+    <DialogContent>
+        <EditForm Model="@_model" OnValidSubmit="HandleSubmit">
+            <DataAnnotationsValidator />
+
+            <MudGrid>
+                <MudItem XS="12" SM="6">
+                    <MudTextField Label="Username" @bind-Value="_model.Username" Disabled="IsEdit" Required="true" Variant="Variant.Outlined" />
+                </MudItem>
+                
+                <MudItem XS="12" SM="6">
+                    <MudTextField Label="E-mail" @bind-Value="_model.Email" Required="true" InputType="InputType.Email" Variant="Variant.Outlined" />
+                </MudItem>
+
+                <MudItem XS="12" SM="6">
+                    <MudTextField Label="Όνομα" @bind-Value="_model.FirstName" Required="true" Variant="Variant.Outlined" />
+                </MudItem>
+
+                <MudItem XS="12" SM="6">
+                    <MudTextField Label="Επώνυμο" @bind-Value="_model.LastName" Required="true" Variant="Variant.Outlined" />
+                </MudItem>
+
+                <MudItem XS="12">
+                    <MudTextField Label="Κινητό Τηλέφωνο" @bind-Value="_model.PhoneNumber" Variant="Variant.Outlined" InputType="InputType.Telephone" Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Phone" />
+                </MudItem>
+
+                @if (!IsEdit)
+                {
+                    <MudItem XS="12">
+                        <MudText Typo="Typo.caption" Color="Color.Info">
+                             <b>Σημείωση:</b> Ο προεπιλεγμένος κωδικός πρόσβασης για τον νέο χρήστη θα είναι: <b>Welcome123!</b>
+                        </MudText>
+                    </MudItem>
+                }
+            </MudGrid>
+        </EditForm>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel" Variant="Variant.Text">Ακύρωση</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="HandleSubmit" Disabled="_isSaving">
+            @if (_isSaving)
+            {
+                <MudProgressCircular Class="ms-n1" Size="Size.Small" Indeterminate="true" />
+                <span class="ms-2">Αποθήκευση...</span>
+            }
+            else
+            {
+                <span>Αποθήκευση</span>
+            }
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] IMudDialogInstance MudDialog { get; set; } = null!;
+    
+    [Parameter] public Users.UserClientDto? UserToEdit { get; set; }
+
+    private UserModel _model = new();
+    private bool _isSaving = false;
+    private bool IsEdit => UserToEdit != null;
+
+    protected override void OnInitialized()
+    {
+        if (IsEdit && UserToEdit != null)
+        {
+            _model = new UserModel
+            {
+                Username = UserToEdit.Username,
+                FirstName = UserToEdit.FirstName,
+                LastName = UserToEdit.LastName,
+                Email = UserToEdit.Email,
+                PhoneNumber = UserToEdit.PhoneNumber
+            };
+        }
+    }
+
+    private async Task HandleSubmit()
+    {
+        if (string.IsNullOrWhiteSpace(_model.Username) || string.IsNullOrWhiteSpace(_model.Email))
+        {
+            Snackbar.Add("Παρακαλώ συμπληρώστε τα υποχρεωτικά πεδία.", Severity.Warning);
+            return;
+        }
+
+        _isSaving = true;
+        try
+        {
+            HttpResponseMessage response;
+            var tenantId = await LocalStorage.GetItemAsync<string>("tenantId");
+            var token = await LocalStorage.GetItemAsync<string>("authToken");
+
+            if (IsEdit)
+            {
+                // PUT: api/Users/update/{id}
+                var request = new HttpRequestMessage(HttpMethod.Put, $"api/Users/update/{UserToEdit!.Id}");
+                request.Content = JsonContent.Create(new {
+                    FirstName = _model.FirstName,
+                    LastName = _model.LastName,
+                    Email = _model.Email,
+                    PhoneNumber = _model.PhoneNumber,
+                    Role = "Employee"
+                });
+
+                if (!string.IsNullOrEmpty(tenantId)) request.Headers.Add("X-Tenant-Id", tenantId);
+                if (!string.IsNullOrEmpty(token)) request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+                response = await Http.SendAsync(request);
+            }
+            else
+            {
+                // POST: api/Users/create
+                var request = new HttpRequestMessage(HttpMethod.Post, "api/Users/create");
+                request.Content = JsonContent.Create(new {
+                    Username = _model.Username,
+                    FirstName = _model.FirstName,
+                    LastName = _model.LastName,
+                    Email = _model.Email,
+                    PhoneNumber = _model.PhoneNumber,
+                    Role = "Employee"
+                });
+
+                if (!string.IsNullOrEmpty(tenantId)) request.Headers.Add("X-Tenant-Id", tenantId);
+                if (!string.IsNullOrEmpty(token)) request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+                response = await Http.SendAsync(request);
+            }
+
+            if (response.IsSuccessStatusCode)
+            {
+                Snackbar.Add(IsEdit ? "Τα στοιχεία ενημερώθηκαν!" : "Ο χρήστης δημιουργήθηκε επιτυχώς!", Severity.Success);
+                MudDialog.Close(DialogResult.Ok(true));
+            }
+            else
+            {
+                var errorMsg = await response.Content.ReadAsStringAsync();
+                Snackbar.Add($"Αποτυχία: {errorMsg}", Severity.Error);
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Σφάλμα: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _isSaving = false;
+        }
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+
+    public class UserModel
+    {
+        public string Username { get; set; } = string.Empty;
+        public string FirstName { get; set; } = string.Empty;
+        public string LastName { get; set; } = string.Empty;
+        public string Email { get; set; } = string.Empty;
+        public string PhoneNumber { get; set; } = string.Empty;
+    }
+}

@@ -3,18 +3,84 @@
 @inject NavigationManager NavManager
 @inject HttpClient Http
 @inject Blazored.LocalStorage.ILocalStorageService LocalStorage
+@inject ISnackbar Snackbar
+@implements IAsyncDisposable
 
 <MudLayout>
     <MudAppBar Elevation="1" Color="Color.Primary">
         <MudIconButton Icon="@Icons.Material.Filled.Menu" Color="Color.Inherit" Edge="Edge.Start" OnClick="@((e) => DrawerToggle())" />
-        <MudText Typo="Typo.h5" Class="ml-3">Tenant Admin Panel</MudText>
+
+        <MudText Typo="Typo.h5" Class="ml-3 font-weight-bold">
+            @(_tenantName != null ? $"{_tenantName} Admin Panel" : "Admin Panel")
+        </MudText>
+
         <MudSpacer />
 
-        <MudBadge Content="3" Color="Color.Error" Overlap="true" Class="mx-4">
-            <MudIcon Icon="@Icons.Material.Filled.Notifications" Color="Color.Inherit" />
-        </MudBadge>
+        <MudMenu @bind-Open="_isMenuOpen" AnchorOrigin="Origin.BottomRight" TransformOrigin="Origin.TopRight" Dense="true" Class="mx-4">
+            <ActivatorContent>
+                <MudBadge Content="@_unreadCount" Color="Color.Error" Overlap="true" Visible="@(_unreadCount > 0)">
+                    <MudIconButton Icon="@Icons.Material.Filled.Notifications" Color="Color.Inherit" OnClick="ToggleNotificationsMenu" />
+                </MudBadge>
+            </ActivatorContent>
+            <ChildContent>
+                <MudList T="string" Style="width: 340px; max-height: 450px; overflow-y: auto; padding: 0;">
+                    <div class="pa-3 d-flex align-center justify-space-between" style="border-bottom: 1px solid var(--mud-palette-divider); background-color: var(--mud-palette-background-grey);">
+                        <MudText Typo="Typo.subtitle1" Class="font-weight-bold">Ειδοποιήσεις</MudText>
+                        @if (_unreadCount > 0)
+                        {
+                            <MudChip T="string" Color="Color.Error" Size="Size.Small" Variant="Variant.Filled">@_unreadCount νέες</MudChip>
+                        }
+                    </div>
 
-        <MudText Typo="Typo.body1" Class="mx-2">adidas-store Admin</MudText>
+                    @if (_loadingNotifications)
+                    {
+                        <div class="d-flex justify-center pa-4">
+                            <MudProgressCircular Color="Color.Primary" Size="Size.Small" Indeterminate="true" />
+                        </div>
+                    }
+                    else if (_notifications == null || !_notifications.Any())
+                    {
+                        <div class="pa-6 text-center">
+                            <MudIcon Icon="@Icons.Material.Filled.NotificationsNone" Color="Color.Default" Class="mud-text-disabled" Style="font-size: 2.5rem;" />
+                            <MudText Typo="Typo.body2" Class="mud-text-secondary mt-2">Δεν υπάρχουν ειδοποιήσεις για εμφάνιση.</MudText>
+                        </div>
+                    }
+                    else
+                    {
+                        @foreach (var notif in _notifications)
+                        {
+                            <div class="pa-3 d-flex align-start gap-2" style="border-bottom: 1px solid var(--mud-palette-divider); background-color: @(notif.IsRead ? "transparent" : "rgba(var(--mud-palette-primary-rgb), 0.04)");">
+                                <div class="flex-grow-1" style="min-width: 0; word-break: break-word;">
+                                    <MudText Typo="Typo.subtitle2" Class="@(notif.IsRead ? "mud-text-secondary" : "font-weight-bold")">
+                                        @notif.Title
+                                    </MudText>
+                                    <MudText Typo="Typo.body2" Class="@(notif.IsRead ? "mud-text-secondary" : "")" Style="font-size: 0.85rem;">
+                                        @notif.Message
+                                    </MudText>
+                                    <MudText Typo="Typo.caption" Class="mud-text-disabled d-block mt-1" Style="font-size: 0.75rem;">
+                                        @DateTime.SpecifyKind(notif.CreatedAt, DateTimeKind.Utc).ToLocalTime().ToString("dd/MM HH:mm")
+                                    </MudText>
+                                </div>
+                                @if (!notif.IsRead)
+                                {
+                                    <MudTooltip Text="Σήμανση ως διαβασμένο">
+                                        <MudIconButton Icon="@Icons.Material.Filled.CheckCircle" Size="Size.Small" Color="Color.Success"
+                                                       OnClick="@(() => MarkAsReadAsync(notif.Id))" />
+                                    </MudTooltip>
+                                }
+                            </div>
+                        }
+                    }
+                </MudList>
+            </ChildContent>
+        </MudMenu>
+
+        <MudText Typo="Typo.body1" Class="mx-2" Style="opacity: 0.9;">
+            @if (!string.IsNullOrEmpty(_username))
+            {
+                <span>Logged in as: <b>@_username</b></span>
+            }
+        </MudText>
 
         <MudTooltip Text="Αποσύνδεση">
             <MudIconButton Icon="@Icons.Material.Filled.Logout" Color="Color.Inherit" OnClick="HandleLogout" />
@@ -28,6 +94,12 @@
             <MudNavLink Icon="@Icons.Material.Filled.ShoppingCart" Href="/admin/orders">Παραγγελίες</MudNavLink>
             <MudNavLink Icon="@Icons.Material.Filled.Inventory" Href="/admin/products">Προϊόντα</MudNavLink>
             <MudNavLink Icon="@Icons.Material.Filled.AssignmentReturn" Href="/admin/returns">Επιστροφές</MudNavLink>
+
+            <AuthorizeView Roles="Administrator, Employee">
+                <Authorized>
+                    <MudNavLink Icon="@Icons.Material.Filled.People" Href="/admin/users">Χρήστες</MudNavLink>
+                </Authorized>
+            </AuthorizeView>
 
             <MudDivider Class="my-2" />
             <MudText Typo="Typo.subtitle2" Color="Color.Secondary" Class="px-4 py-2">ΡΥΘΜΙΣΕΙΣ</MudText>
@@ -44,53 +116,191 @@
 
 @code {
     bool _drawerOpen = true;
+    bool _isMenuOpen = false; // Νέα μεταβλητή για να ελέγχουμε το dropdown του καμπανακιού
+
+    private string? _tenantName;
+    private string? _username;
+
+    private List<NotificationClientDto> _notifications = new();
+    private int _unreadCount = 0;
+    private bool _loadingNotifications = false;
+    private bool _isStaff = false;
+
+    // 📡 Η μεταβλητή για το SignalR!
+    private HubConnection? _hubConnection;
 
     void DrawerToggle()
     {
         _drawerOpen = !_drawerOpen;
     }
 
+    // Νέα μέθοδος για να ανοίγει το καμπανάκι και να φορτώνει τα δεδομένα
+    private async Task ToggleNotificationsMenu()
+    {
+        if (!_isMenuOpen)
+        {
+            await LoadNotificationsAsync();
+        }
+        _isMenuOpen = !_isMenuOpen;
+    }
+
+    // Το OnInitializedAsync πλέον κάνει μόνο τον έλεγχο του Role με ασφάλεια στη μνήμη
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            // 1. Παίρνουμε με ασφάλεια το Authentication State
+            var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+            if (authState?.User?.Identity != null && authState.User.Identity.IsAuthenticated)
+            {
+                var user = authState.User;
+
+                // Ελέγχουμε αν είναι Staff (Admin ή Employee)
+                _isStaff = user.IsInRole("Administrator") || user.IsInRole("Employee");
+            }
+        }
+        catch (Exception ex)
+        {
+            // Αν συμβεί οποιοδήποτε σφάλμα στο initialization, το καταγράφουμε στην κονσόλα
+            // χωρίς να αφήσουμε την εφαρμογή να κρασάρει!
+            Console.WriteLine($"Error during MainLayout initialization: {ex.Message}");
+        }
+    }
+
+    // Χρησιμοποιούμε την OnAfterRenderAsync για να καλέσουμε το LocalStorage και το API
+    // ΜΟΝΟ όταν το UI έχει φορτώσει 100% και είναι ασφαλές να τρέξουμε JS Interop!
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            try
+            {
+                // Φορτώνουμε το όνομα του Tenant και το Username για το Header
+                await LoadHeaderDataAsync();
+
+                if (_isStaff)
+                {
+                    // Φορτώνουμε τις ειδοποιήσεις
+                    await LoadNotificationsAsync();
+
+                    // Ξεκινάμε τη Live Σύνδεση με το Backend!
+                    await StartSignalRConnectionAsync();
+                }
+
+                // Ενημερώνουμε το UI για να σχεδιάσει τα νέα δεδομένα
+                StateHasChanged();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error in AfterRender: {ex.Message}");
+            }
+        }
+    }
+
+    // Η ΝΕΑ ΜΕΘΟΔΟΣ ΓΙΑ ΤΟ SIGNALR
+    private async Task StartSignalRConnectionAsync()
+    {
+        try
+        {
+            var token = await LocalStorage.GetItemAsync<string>("authToken");
+            if (string.IsNullOrEmpty(token)) return;
+
+            // Βάλε εδώ το σωστό URL του Hub σου (π.χ. /api/notificationhub)
+            var baseUri = Http.BaseAddress?.ToString() ?? NavManager.BaseUri;
+            var hubUrl = new Uri(new Uri(baseUri), "api/notificationhub");
+
+            _hubConnection = new HubConnectionBuilder()
+                .WithUrl(hubUrl, options =>
+                {
+                    // Περνάμε το JWT Token για να μας αναγνωρίσει το Backend Hub!
+                    options.AccessTokenProvider = () => Task.FromResult(token)!;
+                })
+                .WithAutomaticReconnect() // Αν πέσει το ίντερνετ, ξανασυνδέεται μόνο του
+                .Build();
+
+            // Τι κάνουμε όταν ακούσουμε το event "ReceiveNotification"
+            _hubConnection.On<object>("ReceiveNotification", async (payload) =>
+            {
+                Console.WriteLine("[SignalR] ΝΕΑ ΕΙΔΟΠΟΙΗΣΗ ΕΛΗΦΘΗ!");
+
+                // Παίζουμε ήχο (προαιρετικά) ή πετάμε ένα Snackbar πάνω δεξιά
+                Snackbar.Add("Νέα ειδοποίηση συστήματος!", Severity.Info);
+
+                // Ανανεώνουμε τη λίστα για να πάρουμε το κανονικό DTO από το Database
+                await LoadNotificationsAsync();
+
+                // Λέμε στο Blazor να ανανεώσει το UI (να ανάψει το καμπανάκι)
+                await InvokeAsync(StateHasChanged);
+            });
+
+            await _hubConnection.StartAsync();
+            Console.WriteLine("[SignalR] Συνδέθηκε επιτυχώς στο Hub!");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[SignalR] Σφάλμα σύνδεσης: {ex.Message}");
+        }
+    }
+
+    private async Task LoadHeaderDataAsync()
+    {
+        try
+        {
+            // 1. Παίρνουμε το Authentication State
+            var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+            var user = authState.User;
+
+            if (user.Identity != null && user.Identity.IsAuthenticated)
+            {
+                // 2. Διαβάζουμε δυναμικά το Username
+                _username = user.Identity.Name;
+
+                // 3. Διαβάζουμε το TenantId από το LocalStorage ή από τα Claims
+                _tenantName = await LocalStorage.GetItemAsync<string>("tenantId");
+
+                if (string.IsNullOrEmpty(_tenantName))
+                {
+                    // Αν για κάποιο λόγο λείπει από το LocalStorage, το τραβάμε από το "TenantId" claim του JWT!
+                    _tenantName = user.FindFirst("TenantId")?.Value;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading header metadata: {ex.Message}");
+        }
+    }
+
     private async Task HandleLogout()
     {
         try
         {
-            // 1. Διαβάζουμε δυναμικά τα δεδομένα από το Local Storage
             var refreshToken = await LocalStorage.GetItemAsync<string>("refreshToken");
             var tenantId = await LocalStorage.GetItemAsync<string>("tenantId");
 
-            // Αν το tenantId λείπει από το storage, το βρίσκουμε από τα Claims του συνδεδεμένου χρήστη!
             if (string.IsNullOrEmpty(tenantId))
             {
                 var authState = await AuthStateProvider.GetAuthenticationStateAsync();
                 var user = authState.User;
-
-                // Ψάχνουμε το claim του Tenant ή διαβάζουμε το email (π.χ. admin@adidas-store.com)
                 var emailClaim = user.FindFirst(System.Security.Claims.ClaimTypes.Email)?.Value;
                 if (!string.IsNullOrEmpty(emailClaim) && emailClaim.Contains("@"))
                 {
-                    tenantId = emailClaim.Split('@')[1].Split('.')[0]; // Βγάζει το "adidas-store"
+                    tenantId = emailClaim.Split('@')[1].Split('.')[0];
                 }
             }
 
-            // Εκτύπωση για να βλέπεις στην κονσόλα ότι είναι 100% δυναμικό!
             Console.WriteLine($"[LOGOUT DEBUG] Token: {refreshToken} | Δυναμικό Tenant: {tenantId}");
 
             if (!string.IsNullOrEmpty(refreshToken) && !string.IsNullOrEmpty(tenantId))
             {
-                // 2. JSON Payload για το Backend DTO
                 var jsonPayload = $"{{\n  \"RefreshToken\": \"{refreshToken}\"\n}}";
                 var content = new StringContent(jsonPayload, System.Text.Encoding.UTF8, "application/json");
 
-                // 3. HttpRequest με το Δυναμικό Header
                 var request = new HttpRequestMessage(HttpMethod.Post, "api/Users/logout");
                 request.Content = content;
-
-                // ΕΔΩ ΜΠΑΙΝΕΙ ΤΟ ΔΥΝΑΜΙΚΟ TENANT
                 request.Headers.Add("X-Tenant-Id", tenantId);
 
-                // 4. Αποστολή στο API
                 var response = await Http.SendAsync(request);
-
                 Console.WriteLine($"[LOGOUT DEBUG] API Response Status: {response.StatusCode}");
             }
         }
@@ -100,20 +310,113 @@
         }
         finally
         {
-            // 5. Καθαρίζουμε τον Provider και σβήνουμε ΚΑΙ το tenantId για τον επόμενο χρήστη
             if (AuthStateProvider is CustomAuthStateProvider customAuth)
             {
                 await customAuth.MarkUserAsLoggedOut();
             }
             await LocalStorage.RemoveItemAsync("tenantId");
-
-            // Επιστροφή στο Login
             NavManager.NavigateTo("/login");
         }
     }
 
-    public class LogoutRequestBody
+    private async Task LoadNotificationsAsync()
     {
-        public string RefreshToken { get; set; } = string.Empty;
+        // Ελέγχουμε αν υπάρχει token πριν κάνουμε την κλήση
+        var token = await LocalStorage.GetItemAsync<string>("authToken");
+        if (string.IsNullOrEmpty(token)) return;
+
+        _loadingNotifications = true;
+        try
+        {
+            var request = new HttpRequestMessage(HttpMethod.Get, "api/notifications/adminNotifications");
+            var tenantId = await LocalStorage.GetItemAsync<string>("tenantId");
+
+            request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+            if (!string.IsNullOrEmpty(tenantId))
+            {
+                request.Headers.Add("X-Tenant-Id", tenantId);
+            }
+
+            var response = await Http.SendAsync(request);
+            if (response.IsSuccessStatusCode)
+            {
+                _notifications = await response.Content.ReadFromJsonAsync<List<NotificationClientDto>>() ?? new();
+                _unreadCount = _notifications.Count(n => !n.IsRead);
+            }
+            else
+            {
+                Console.WriteLine($"Notifications API returned status: {response.StatusCode}");
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading notifications: {ex.Message}");
+        }
+        finally
+        {
+            _loadingNotifications = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task MarkAsReadAsync(int id)
+    {
+        try
+        {
+            var request = new HttpRequestMessage(HttpMethod.Put, $"api/notifications/admin/{id}/read");
+            var token = await LocalStorage.GetItemAsync<string>("authToken");
+            var tenantId = await LocalStorage.GetItemAsync<string>("tenantId");
+
+            if (!string.IsNullOrEmpty(token)) request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+            if (!string.IsNullOrEmpty(tenantId)) request.Headers.Add("X-Tenant-Id", tenantId);
+
+            var response = await Http.SendAsync(request);
+            if (response.IsSuccessStatusCode)
+            {
+                // Ενημερώνουμε τη λίστα τοπικά χωρίς να ξανακάνουμε κλήση στη βάση!
+                var notif = _notifications.FirstOrDefault(n => n.Id == id);
+                if (notif != null)
+                {
+                    notif.IsRead = true;
+                    _unreadCount = _notifications.Count(n => !n.IsRead);
+                    StateHasChanged();
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error marking notification as read: {ex.Message}");
+        }
+    }
+
+    // ΠΡΟΣΘΗΚΗ: Κλείνουμε τη σύνδεση όταν ο χρήστης φεύγει (Memory Leak Prevention!)
+    public async ValueTask DisposeAsync()
+    {
+        if (_hubConnection is not null)
+        {
+            await _hubConnection.DisposeAsync();
+        }
+    }
+
+    // Το ΑΝΑΝΕΩΜΕΝΟ DTO για τον Client
+    public class NotificationClientDto
+    {
+        [System.Text.Json.Serialization.JsonPropertyName("id")]
+        public int Id { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("title")]
+        public string Title { get; set; } = string.Empty;
+
+        [System.Text.Json.Serialization.JsonPropertyName("message")]
+        public string Message { get; set; } = string.Empty;
+
+        [System.Text.Json.Serialization.JsonPropertyName("type")]
+        public string Type { get; set; } = string.Empty;
+
+        [System.Text.Json.Serialization.JsonPropertyName("isRead")]
+        public bool IsRead { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("createdAt")]
+        public DateTime CreatedAt { get; set; }
     }
 }

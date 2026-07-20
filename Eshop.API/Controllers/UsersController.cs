@@ -113,5 +113,52 @@ namespace Eshop.API.Controllers
 
             return Ok(new { message = "Τα στοιχεία του χρήστη ενημερώθηκαν!" });
         }
+
+        [HttpGet("all")]
+        [Authorize] 
+        public async Task<IActionResult> GetAllUsers()
+        {
+            var users = await _userService.GetAllUsersAsync();
+            return Ok(users);
+        }
+
+        [HttpGet("{id}/notes")]
+        [Authorize]
+        public async Task<IActionResult> GetUserNotes(int id)
+        {
+            var notes = await _userService.GetUserNotesAsync(id);
+            return Ok(notes);
+        }
+
+        [HttpPost("my-notes")]
+        [Authorize]
+        public async Task<IActionResult> AddMyNote([FromBody] string content)
+        {
+            if (string.IsNullOrWhiteSpace(content))
+                return BadRequest(new { message = "Η σημείωση δεν μπορεί να είναι κενή." });
+
+            // Παίρνουμε το Username και το UserId κατευθείαν από το Token (Claims)
+            var currentUsername = User.Identity?.Name ?? "Unknown";
+            var userIdClaim = User.FindFirst("UserId")?.Value;
+
+            if (string.IsNullOrEmpty(userIdClaim) || !int.TryParse(userIdClaim, out int userId))
+                return Unauthorized(new { message = "Δεν βρέθηκε το ID του χρήστη στο token." });
+
+            var success = await _userService.AddUserNoteAsync(userId, content, currentUsername);
+
+            if (!success) return NotFound(new { message = "Ο χρήστης δεν βρέθηκε." });
+
+            return Ok(new { message = "Η παρατήρηση προστέθηκε!" });
+        }
+
+        [HttpDelete("{id}")]
+        [Authorize(Roles = "Administrator")] 
+        public async Task<IActionResult> DeleteUser(int id)
+        {
+            var result = await _userService.DeleteUserAsync(id);
+            if (!result) return NotFound(new { message = "Ο χρήστης δεν βρέθηκε." });
+
+            return Ok(new { message = "Ο χρήστης διαγράφηκε επιτυχώς!" });
+        }
     }
 }

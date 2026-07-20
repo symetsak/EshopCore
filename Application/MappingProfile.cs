@@ -13,6 +13,8 @@ namespace Eshop.Application.DTOs
                 .ForMember(dest => dest.Token, opt => opt.Ignore())
                 .ForMember(dest => dest.RefreshToken, opt => opt.Ignore());
 
+            CreateMap<User, UserResponseDto>();
+
             // 2. Products
             CreateMap<ProductCreateDto, Product>()
                 .ForMember(dest => dest.Id, opt => opt.Ignore())

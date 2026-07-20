@@ -34,6 +34,7 @@ namespace Eshop.API.Middleware
                 path.Contains("swagger") ||
                 path.Contains("favicon") ||
                 path.Contains("uploads") ||
+                path.Contains("negotiate") ||
                 (path.Contains("tenants") && method == "POST"))
             {
                 await _next(context);
@@ -47,14 +48,30 @@ namespace Eshop.API.Middleware
             {
                 tId = tenantIdHeader.ToString().Trim().ToLower();
             }
-            // Αν δεν υπάρχει το HTTP Header, αλλά το request είναι για το SignalR Hub,
-            // τραβάμε το TenantId απευθείας από τα Claims του χρήστη (από το JWT Token)!
+            // Αν δεν υπάρχει το HTTP Header, αλλά το request είναι για το SignalR Hub
             else if (path.Contains("/api/notificationhub"))
             {
-                var tenantIdClaim = context.User?.FindFirst("TenantId")?.Value;
-                if (!string.IsNullOrEmpty(tenantIdClaim))
+                // 1. Δοκιμάζουμε να πάρουμε το token από το query string
+                var accessToken = context.Request.Query["access_token"].ToString();
+
+                if (!string.IsNullOrEmpty(accessToken))
                 {
-                    tId = tenantIdClaim.Trim().ToLower();
+                    try
+                    {
+                        // 2. Διαβάζουμε το JWT Token χωρίς validation (απλό read των claims) για να βρούμε τον Tenant
+                        var handler = new System.IdentityModel.Tokens.Jwt.JwtSecurityTokenHandler();
+                        var jwtToken = handler.ReadJwtToken(accessToken);
+                        var tenantIdClaim = jwtToken.Claims.FirstOrDefault(c => c.Type == "TenantId")?.Value;
+
+                        if (!string.IsNullOrEmpty(tenantIdClaim))
+                        {
+                            tId = tenantIdClaim.Trim().ToLower();
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine($"[SignalR Tenancy Error] Σφάλμα στο decoding του token: {ex.Message}");
+                    }
                 }
             }
 

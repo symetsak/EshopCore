@@ -171,6 +171,7 @@ namespace Eshop.Application.Services
                 FirstName = dto.FirstName,
                 LastName = dto.LastName,
                 Email = dto.Email,
+                PhoneNumber = dto.PhoneNumber,
                 Role = dto.Role,
                 IsFirstLogin = true, // Οι χρήστες που φτιάχνει ο admin δεν χρειάζονται force reset
                 PasswordHash = BCrypt.Net.BCrypt.HashPassword("Welcome123!"), // Κρυπτογράφηση
@@ -190,10 +191,78 @@ namespace Eshop.Application.Services
             user.FirstName = dto.FirstName;
             user.LastName = dto.LastName;
             user.Email = dto.Email;
+            user.PhoneNumber = dto.PhoneNumber;
             if (!string.IsNullOrEmpty(dto.Role)) user.Role = dto.Role;
 
             _userRepo.UpdateUser(user);
             await _userRepo.SaveChangesAsync();
+            return true;
+        }
+
+        public async Task<bool> DeleteUserAsync(int id)
+        {
+            var user = await _userRepo.GetByIdAsync(id);
+            if (user == null) return false;
+
+            _userRepo.DeleteUser(user);
+            await _userRepo.SaveChangesAsync();
+            return true;
+        }
+
+        public async Task<IEnumerable<UserResponseDto>> GetAllUsersAsync()
+        {
+            var users = await _userRepo.GetAllUsersWithNotesAsync();
+            var dtoList = new List<UserResponseDto>();
+
+            foreach (var u in users)
+            {
+                var dto = _mapper.Map<UserResponseDto>(u);
+
+                // Βρίσκουμε την πιο πρόσφατη σημείωση (αν υπάρχει)
+                var latestNote = u.Notes.OrderByDescending(n => n.CreatedAt).FirstOrDefault();
+
+                if (latestNote != null)
+                {
+                    dto.LatestNote = latestNote.Content;
+                    dto.LatestNoteCreatedAt = latestNote.CreatedAt; 
+                }
+
+                dtoList.Add(dto);
+            }
+
+            return dtoList;
+        }
+
+        public async Task<IEnumerable<UserNoteDto>> GetUserNotesAsync(int userId)
+        {
+            var notes = await _userRepo.GetUserNotesByUserIdAsync(userId);
+
+            // Χειροκίνητο mapping (ή μπορείς να βάλεις το AutoMapper αν προτιμάς)
+            return notes.Select(n => new UserNoteDto
+            {
+                Id = n.Id,
+                Content = n.Content,
+                CreatedAt = n.CreatedAt,
+                CreatedBy = n.CreatedBy
+            }).ToList();
+        }
+
+        public async Task<bool> AddUserNoteAsync(int userId, string content, string createdBy)
+        {
+            var user = await _userRepo.GetByIdAsync(userId);
+            if (user == null) return false;
+
+            var note = new UserNote
+            {
+                UserId = userId,
+                Content = content,
+                CreatedBy = createdBy,
+                CreatedAt = DateTime.UtcNow
+            };
+
+            await _userRepo.AddUserNoteAsync(note);
+            await _userRepo.SaveChangesAsync();
+
             return true;
         }
     }

@@ -1,5 +1,5 @@
 ﻿@page "/admin/products"
-@attribute [Authorize(Roles = "Administrator")]
+@attribute [Authorize(Roles = "Administrator, Employee")]
 @inject IDialogService DialogService
 @inject HttpClient Http
 @inject ISnackbar Snackbar

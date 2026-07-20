@@ -14,5 +14,9 @@ namespace Eshop.Core.Interfaces
         Task AddUserAsync(User user);
         void UpdateUser(User user);
         Task<IEnumerable<User>> GetAllUsersAsync();
+        void DeleteUser(User user);
+        Task<IEnumerable<User>> GetAllUsersWithNotesAsync();
+        Task<IEnumerable<UserNote>> GetUserNotesByUserIdAsync(int userId);
+        Task AddUserNoteAsync(UserNote note);
     }
 }

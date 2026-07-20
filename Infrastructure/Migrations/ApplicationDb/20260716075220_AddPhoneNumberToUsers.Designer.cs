@@ -3,6 +3,7 @@ using System;
 using Eshop.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace Eshop.Infrastructure.Migrations.ApplicationDb
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260716075220_AddPhoneNumberToUsers")]
+    partial class AddPhoneNumberToUsers
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -564,35 +567,6 @@ namespace Eshop.Infrastructure.Migrations.ApplicationDb
                         });
                 });
 
-            modelBuilder.Entity("Eshop.Core.Entities.UserNote", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<string>("Content")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("CreatedBy")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<int>("UserId")
-                        .HasColumnType("integer");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("UserId");
-
-                    b.ToTable("UserNotes");
-                });
-
             modelBuilder.Entity("Eshop.Core.Entities.Wishlist", b =>
                 {
                     b.Property<int>("Id")
@@ -736,17 +710,6 @@ namespace Eshop.Infrastructure.Migrations.ApplicationDb
                     b.Navigation("User");
                 });
 
-            modelBuilder.Entity("Eshop.Core.Entities.UserNote", b =>
-                {
-                    b.HasOne("Eshop.Core.Entities.User", "User")
-                        .WithMany("Notes")
-                        .HasForeignKey("UserId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("User");
-                });
-
             modelBuilder.Entity("Eshop.Core.Entities.Wishlist", b =>
                 {
                     b.HasOne("Eshop.Core.Entities.Product", "Product")
@@ -785,8 +748,6 @@ namespace Eshop.Infrastructure.Migrations.ApplicationDb
 
             modelBuilder.Entity("Eshop.Core.Entities.User", b =>
                 {
-                    b.Navigation("Notes");
-
                     b.Navigation("Orders");
                 });
 #pragma warning restore 612, 618

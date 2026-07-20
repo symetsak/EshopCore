@@ -30,6 +30,8 @@ namespace Eshop.Infrastructure.Repositories
         public void UpdateUser(User user) => _context.Users.Update(user);
         public async Task<IEnumerable<User>> GetAllUsersAsync() => await _context.Users.ToListAsync();
 
+        public void DeleteUser(User user) => _context.Users.Remove(user);
+
         public async Task<bool> ChangePasswordAsync(string username, string currentPassword, string newPassword, string tenantId)
         {
             var user = await _context.Users
@@ -49,6 +51,28 @@ namespace Eshop.Infrastructure.Repositories
             user.IsFirstLogin = false;
 
             return true;
+        }
+
+        public async Task<IEnumerable<User>> GetAllUsersWithNotesAsync()
+        {
+            // Φέρνουμε όλους τους χρήστες και ΚΑΙ τις σημειώσεις τους (Include)
+            return await _context.Users
+                .Include(u => u.Notes)
+                .ToListAsync();
+        }
+
+        public async Task<IEnumerable<UserNote>> GetUserNotesByUserIdAsync(int userId)
+        {
+            // Φέρνουμε τις σημειώσεις ενός συγκεκριμένου χρήστη, ταξινομημένες από την πιο πρόσφατη
+            return await _context.UserNotes
+                .Where(n => n.UserId == userId)
+                .OrderByDescending(n => n.CreatedAt)
+                .ToListAsync();
+        }
+
+        public async Task AddUserNoteAsync(UserNote note)
+        {
+            await _context.UserNotes.AddAsync(note);
         }
     }
 }
