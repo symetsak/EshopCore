@@ -1,0 +1,330 @@
+﻿@page "/admin/orders"
+@attribute [Authorize(Roles = "Administrator, Employee")]
+@using System.Net.Http.Headers
+@using System.Net.Http.Json
+@inject HttpClient Http
+@inject Blazored.LocalStorage.ILocalStorageService LocalStorage
+@inject ISnackbar Snackbar
+
+<MudContainer MaxWidth="MaxWidth.False" Class="mt-4">
+    <MudText Typo="Typo.h4" Class="mb-5 font-weight-bold">Διαχείριση Παραγγελιών</MudText>
+
+    <MudTable Items="@_orders" Dense="false" Hover="true" Loading="@_loading" Striped="true" Elevation="2">
+        <HeaderContent>
+            <MudTh><MudIcon Icon="@Icons.Material.Filled.ExpandMore" Style="opacity: 0;" /></MudTh>
+            <MudTh>ID</MudTh>
+            <MudTh>Ημερομηνία</MudTh>
+            <MudTh>Πελάτης</MudTh> <!-- Νέα Στήλη -->
+            <MudTh>Σύνολο</MudTh>
+            <MudTh>Πληρωμή</MudTh>
+            <MudTh>Κατάσταση</MudTh>
+            <MudTh Style="width: 220px;">Ενημέρωση</MudTh>
+        </HeaderContent>
+        <RowTemplate>
+            <MudTd>
+                <MudIconButton Icon="@(context.ShowDetails ? Icons.Material.Filled.ExpandLess : Icons.Material.Filled.ExpandMore)"
+                               OnClick="@(() => context.ShowDetails = !context.ShowDetails)"
+                               Size="Size.Small" Color="Color.Primary" />
+            </MudTd>
+            <MudTd DataLabel="ID"><b>#@context.Id</b></MudTd>
+            <MudTd DataLabel="Ημερομηνία">@context.OrderDate.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</MudTd>
+
+            <!-- Εμφάνιση Ονόματος & ID Πελάτη -->
+            <MudTd DataLabel="Πελάτης">
+                <div>
+                    <b>@(!string.IsNullOrEmpty(context.CustomerName) ? context.CustomerName : "Πελάτης")</b>
+                    <MudText Typo="Typo.caption" Class="d-block mud-text-secondary">ID: #@context.CustomerId</MudText>
+                </div>
+            </MudTd>
+
+            <MudTd DataLabel="Σύνολο"><b>@context.TotalAmount.ToString("C")</b></MudTd>
+            <MudTd DataLabel="Πληρωμή">
+                <MudIcon Icon="@(context.PaymentMethod == "Card" ? Icons.Material.Filled.CreditCard : Icons.Material.Filled.LocalShipping)" Size="Size.Small" Class="mr-1" />
+                @context.PaymentMethod
+            </MudTd>
+            <MudTd DataLabel="Κατάσταση">
+                <MudChip T="string" Size="Size.Small" Color="@GetStatusColor(context.Status)" Variant="Variant.Filled">
+                    @context.Status
+                </MudChip>
+            </MudTd>
+
+            <!-- Έλεγχος Δυναμικών Επιλογών Dropdown -->
+            <MudTd DataLabel="Ενημέρωση">
+                @{
+                    // Περνάμε και το PaymentMethod στη μέθοδο
+                    var availableStatuses = GetAvailableStatuses(context.Status, context.PaymentMethod);
+                }
+
+                @if (availableStatuses.Any())
+                {
+                    <MudSelect T="string" Value="@context.Status" ValueChanged="@((s) => UpdateStatusAsync(context.Id, s))"
+                               Dense="true" Outlined="true" Margin="Margin.Dense" DisableUnderLine="true">
+                        <MudSelectItem Value="@context.Status">@context.Status</MudSelectItem>
+
+                        @foreach (var status in availableStatuses)
+                        {
+                            <MudSelectItem Value="@status">@status</MudSelectItem>
+                        }
+                    </MudSelect>
+                }
+                else
+                {
+                    <!-- Αν η λίστα είναι άδεια (π.χ. Cancelled με CashOnDelivery ή Completed/Refunded), κλειδώνει -->
+                    <MudSelect T="string" Value="@context.Status" Disabled="true" Dense="true" Outlined="true" Margin="Margin.Dense">
+                        <MudSelectItem Value="@context.Status">@context.Status</MudSelectItem>
+                    </MudSelect>
+                }
+            </MudTd>
+        </RowTemplate>
+
+        <ChildRowContent>
+            @if (context.ShowDetails)
+            {
+                <MudTr>
+                    <td colspan="8">
+                        <MudCard Elevation="0" Class="pa-4 my-2" Style="background-color: var(--mud-palette-background-grey); border-left: 4px solid var(--mud-palette-primary);">
+                            <MudGrid>
+                                <!-- 🛒 ΑΡΙΣΤΕΡΑ: ΠΕΡΙΕΧΟΜΕΝΑ ΠΑΡΑΓΓΕΛΙΑΣ (6/12) -->
+                                <MudItem xs="12" md="6">
+                                    <MudText Typo="Typo.subtitle2" Class="mb-3 font-weight-bold">Περιεχόμενα Παραγγελίας</MudText>
+
+                                    <MudTable Items="@context.OrderItems" Context="itemContext" Dense="true" Hover="false" Elevation="0" Outlined="true">
+                                        <HeaderContent>
+                                            <MudTh>ID</MudTh>
+                                            <MudTh>Προϊόν</MudTh>
+                                            <MudTh>Τιμή</MudTh>
+                                            <MudTh>Ποσ.</MudTh>
+                                            <MudTh>Υποσύνολο</MudTh>
+                                        </HeaderContent>
+                                        <RowTemplate>
+                                            <MudTd DataLabel="ID">@itemContext.ProductId</MudTd>
+                                            <MudTd DataLabel="Προϊόν">@itemContext.ProductName</MudTd>
+                                            <MudTd DataLabel="Τιμή">@itemContext.UnitPrice.ToString("C")</MudTd>
+                                            <MudTd DataLabel="Ποσότητα">x @itemContext.Quantity</MudTd>
+                                            <MudTd DataLabel="Υποσύνολο"><b>@((itemContext.Quantity * itemContext.UnitPrice).ToString("C"))</b></MudTd>
+                                        </RowTemplate>
+                                    </MudTable>
+                                </MudItem>
+
+                                <!-- ΔΕΞΙΑ: ΔΙΕΥΘΥΝΣΗ & ΕΠΙΚΟΙΝΩΝΙΑ (6/12) -->
+                                <MudItem xs="12" md="6">
+                                    <MudGrid>
+                                        <!-- 1. Στοιχεία Διεύθυνσης -->
+                                        <MudItem xs="12" sm="6">
+                                            <MudPaper Class="pa-3 h-100" Outlined="true" Style="background-color: var(--mud-palette-surface);">
+                                                <div class="d-flex align-center mb-2">
+                                                    <MudIcon Icon="@Icons.Material.Filled.LocationOn" Color="Color.Error" Class="mr-2" Size="Size.Small" />
+                                                    <MudText Typo="Typo.subtitle2" Class="font-weight-bold">Στοιχεία Διεύθυνσης</MudText>
+                                                </div>
+                                                <MudDivider Class="mb-3" />
+
+                                                @if (!string.IsNullOrEmpty(context.Street) || !string.IsNullOrEmpty(context.City))
+                                                {
+                                                    <div class="d-flex flex-column gap-1">
+                                                        <MudText Typo="Typo.body2">
+                                                            <b>Οδός/Αριθμός:</b> @context.Street @context.StreetNumber
+                                                        </MudText>
+                                                        <MudText Typo="Typo.body2">
+                                                            <b>Πόλη:</b> @context.City
+                                                        </MudText>
+                                                        <MudText Typo="Typo.body2">
+                                                            <b>Τ.Κ.:</b> @context.ZipCode
+                                                        </MudText>
+                                                    </div>
+                                                }
+                                                else
+                                                {
+                                                    <MudText Typo="Typo.caption" Class="mud-text-secondary">
+                                                        Δεν υπάρχουν διαθέσιμα στοιχεία διεύθυνσης.
+                                                    </MudText>
+                                                }
+                                            </MudPaper>
+                                        </MudItem>
+
+                                        <!-- 2. Στοιχεία Επικοινωνίας -->
+                                        <MudItem xs="12" sm="6">
+                                            <MudPaper Class="pa-3 h-100" Outlined="true" Style="background-color: var(--mud-palette-surface);">
+                                                <div class="d-flex align-center mb-2">
+                                                    <MudIcon Icon="@Icons.Material.Filled.ContactPhone" Color="Color.Primary" Class="mr-2" Size="Size.Small" />
+                                                    <MudText Typo="Typo.subtitle2" Class="font-weight-bold">Στοιχεία Επικοινωνίας</MudText>
+                                                </div>
+                                                <MudDivider Class="mb-3" />
+
+                                                <div class="d-flex flex-column gap-1">
+                                                    <MudText Typo="Typo.body2" Class="text-truncate">
+                                                        <b>Email:</b> <a href="mailto:@context.CustomerEmail" style="text-decoration: none; color: var(--mud-palette-primary);">@(!string.IsNullOrEmpty(context.CustomerEmail) ? context.CustomerEmail : "-")</a>
+                                                    </MudText>
+                                                    <MudText Typo="Typo.body2">
+                                                        <b>Τηλέφωνο:</b> <a href="tel:@context.CustomerPhone" style="text-decoration: none; color: inherit;">@(!string.IsNullOrEmpty(context.CustomerPhone) ? context.CustomerPhone : "-")</a>
+                                                    </MudText>
+                                                </div>
+                                            </MudPaper>
+                                        </MudItem>
+                                    </MudGrid>
+                                </MudItem>
+                            </MudGrid>
+                        </MudCard>
+                    </td>
+                </MudTr>
+            }
+        </ChildRowContent>
+
+        <PagerContent>
+            <MudTablePager InfoFormat="{first_item}-{last_item} από {all_items}" />
+        </PagerContent>
+    </MudTable>
+</MudContainer>
+
+@code {
+    private List<OrderResponseDto> _orders = new();
+    private bool _loading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadOrdersAsync();
+    }
+
+    private async Task LoadOrdersAsync()
+    {
+        _loading = true;
+        try
+        {
+            var token = await LocalStorage.GetItemAsync<string>("authToken");
+            var tenantId = await LocalStorage.GetItemAsync<string>("tenantId");
+
+            var request = new HttpRequestMessage(HttpMethod.Get, "api/orders/admin/all");
+
+            if (!string.IsNullOrEmpty(token))
+                request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+            if (!string.IsNullOrEmpty(tenantId))
+                request.Headers.Add("X-Tenant-Id", tenantId);
+
+            var response = await Http.SendAsync(request);
+            if (response.IsSuccessStatusCode)
+            {
+                _orders = await response.Content.ReadFromJsonAsync<List<OrderResponseDto>>() ?? new();
+            }
+            else
+            {
+                Snackbar.Add($"Σφάλμα φόρτωσης: {response.StatusCode}", Severity.Error);
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Εξαίρεση: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task UpdateStatusAsync(int orderId, string newStatus)
+    {
+        // Αν ο χρήστης ξαναεπέλεξε το ίδιο status, δεν κάνουμε API call
+        var currentOrder = _orders.FirstOrDefault(o => o.Id == orderId);
+        if (currentOrder != null && currentOrder.Status == newStatus) return;
+
+        try
+        {
+            var token = await LocalStorage.GetItemAsync<string>("authToken");
+            var tenantId = await LocalStorage.GetItemAsync<string>("tenantId");
+
+            var request = new HttpRequestMessage(HttpMethod.Put, $"api/orders/admin/{orderId}/status");
+
+            if (!string.IsNullOrEmpty(token))
+                request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+            if (!string.IsNullOrEmpty(tenantId))
+                request.Headers.Add("X-Tenant-Id", tenantId);
+
+            var payload = new { Status = newStatus };
+            request.Content = JsonContent.Create(payload);
+
+            var response = await Http.SendAsync(request);
+            if (response.IsSuccessStatusCode)
+            {
+                Snackbar.Add($"Η παραγγελία #{orderId} άλλαξε σε {newStatus}!", Severity.Success);
+                await LoadOrdersAsync();
+            }
+            else
+            {
+                var errorResult = await response.Content.ReadFromJsonAsync<ErrorResponse>();
+                Snackbar.Add(errorResult?.Message ?? "Προέκυψε σφάλμα κατά την ενημέρωση.", Severity.Error);
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Εξαίρεση: {ex.Message}", Severity.Error);
+        }
+    }
+
+    // ΚΑΝΟΝΕΣ ΔΥΝΑΜΙΚΗΣ ΕΜΦΑΝΙΣΗΣ STATUS ΣΤΟ DROPDOWN
+    private List<string> GetAvailableStatuses(string currentStatus, string paymentMethod)
+    {
+        return currentStatus switch
+        {
+            // Αν είναι Pending ή Paid -> Επιτρέπει Shipped & Completed
+            "Pending" or "Paid" => new List<string> { "Shipped", "Completed" },
+
+            // Αν είναι CancellationRequested -> Επιτρέπει Cancelled & Refunded
+            "CancellationRequested" => new List<string> { "Cancelled", "Refunded" },
+
+            // Αν είναι Shipped -> Επιτρέπει μετάβαση σε Completed
+            "Shipped" => new List<string> { "Completed" },
+
+            // - Αν πληρώθηκε με Card -> Επιτρέπει ΜΟΝΟ τη μετάβαση σε Refunded
+            // - Αν πληρώθηκε με CashOnDelivery -> Επιστρέφει άδεια λίστα (κλειδώνει)
+            "Cancelled" => paymentMethod.Equals("Card", StringComparison.OrdinalIgnoreCase)
+                ? new List<string> { "Refunded" }
+                : new List<string>(),
+
+            // Σε οποιαδήποτε άλλη περίπτωση (Completed, Refunded, κτλ.) κλειδώνει
+            _ => new List<string>()
+        };
+    }
+
+    private Color GetStatusColor(string status) => status switch
+    {
+        "Pending" or "PendingPayment" => Color.Warning,
+        "Paid" => Color.Info,
+        "Shipped" => Color.Primary,
+        "Completed" => Color.Success,
+        "Cancelled" or "Refunded" => Color.Error,
+        "CancellationRequested" => Color.Dark,
+        _ => Color.Default
+    };
+
+    public class OrderResponseDto
+    {
+        public int Id { get; set; }
+        public DateTime OrderDate { get; set; }
+        public decimal TotalAmount { get; set; }
+        public string Status { get; set; } = string.Empty;
+        public int CustomerId { get; set; }
+        public string CustomerName { get; set; } = string.Empty; 
+        public string PaymentMethod { get; set; } = string.Empty;
+        public List<OrderItemResponseDto> OrderItems { get; set; } = new();
+        public bool ShowDetails { get; set; }
+        public string Street { get; set; } = string.Empty;
+        public string StreetNumber { get; set; } = string.Empty;
+        public string City { get; set; } = string.Empty;
+        public string ZipCode { get; set; } = string.Empty;
+        public string CustomerEmail { get; set; } = string.Empty;
+        public string CustomerPhone { get; set; } = string.Empty;
+    }
+
+    public class OrderItemResponseDto
+    {
+        public int ProductId { get; set; }
+        public string ProductName { get; set; } = string.Empty;
+        public int Quantity { get; set; }
+        public decimal UnitPrice { get; set; }
+    }
+
+    public class ErrorResponse
+    {
+        public string Message { get; set; } = string.Empty;
+    }
+}

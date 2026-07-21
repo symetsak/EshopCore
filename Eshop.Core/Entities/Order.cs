@@ -17,5 +17,11 @@
 
         // Τρόπος Πληρωμής: "CashOnDelivery" ή "Card"
         public string PaymentMethod { get; set; } = "CashOnDelivery";
+
+        // ΠΕΔΙΑ ΔΙΕΥΘΥΝΣΗΣ ΑΠΟΣΤΟΛΗΣ
+        public string Street { get; set; } = string.Empty;
+        public string StreetNumber { get; set; } = string.Empty;
+        public string City { get; set; } = string.Empty;
+        public string ZipCode { get; set; } = string.Empty;
     }
 }

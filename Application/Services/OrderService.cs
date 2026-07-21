@@ -8,15 +8,17 @@ namespace Eshop.Application.Services
     public class OrderService : IOrderService
     {
         private readonly IOrderRepository _orderRepo;
+        private readonly ICustomerRepository _customerRepo; // Για ανάσυρση των default στοιχείων διεύθυνσης του πελάτη
         private readonly IProductRepository _productRepo; // Για έλεγχο και ενημέρωση του Stock
         private readonly IMapper _mapper;
         private readonly INotificationRepository _notificationRepo;
         private readonly IEshopNotificationService _notificationService;
         private readonly ITenantProvider _tenantProvider;
 
-        public OrderService(IOrderRepository orderRepo, IProductRepository productRepo, IMapper mapper, INotificationRepository notificationRepo, IEshopNotificationService notificationService, ITenantProvider tenantProvider)
+        public OrderService(IOrderRepository orderRepo, ICustomerRepository customerRepo, IProductRepository productRepo, IMapper mapper, INotificationRepository notificationRepo, IEshopNotificationService notificationService, ITenantProvider tenantProvider)
         {
             _orderRepo = orderRepo;
+            _customerRepo = customerRepo;
             _productRepo = productRepo;
             _mapper = mapper;
             _notificationRepo = notificationRepo;
@@ -31,10 +33,17 @@ namespace Eshop.Application.Services
                 throw new InvalidOperationException("Το καλάθι αγορών είναι άδειο.");
             }
 
+            // Φέρνουμε τον πελάτη από τη βάση για να διαβάσουμε τα default στοιχεία διεύθυνσης
+            var customer = await _customerRepo.GetByIdAsync(customerId);
+            if (customer == null)
+            {
+                throw new KeyNotFoundException($"Ο πελάτης με ID {customerId} δεν βρέθηκε.");
+            }
+
             // 1. ΔΥΝΑΜΙΚΟΣ ΚΑΘΟΡΙΣΜΟΣ STATUS ΒΑΣΕΙ ΤΡΟΠΟΥ ΠΛΗΡΩΜΗΣ
             // Αν είναι Κάρτα πάει κατευθείαν "Paid", αλλιώς (Αντικαταβολή) μένει "Pending"
             string initialStatus = dto.PaymentMethod.Equals("Card", StringComparison.OrdinalIgnoreCase)
-                ? "PendingPaid"
+                ? "PendingPayment"
                 : "Pending";
 
             // 2. Δημιουργία του βασικού αντικειμένου της Παραγγελίας
@@ -44,7 +53,13 @@ namespace Eshop.Application.Services
                 OrderDate = DateTime.UtcNow,
                 Status = initialStatus,
                 PaymentMethod = dto.PaymentMethod,
-                TotalAmount = 0
+                TotalAmount = 0,
+
+                // Fallback Logic Διεύθυνσης: Αν στάλθηκε νέα διεύθυνση από το Checkout τη χρησιμοποιούμε, αλλιώς παίρνουμε τη default του Customer
+                Street = !string.IsNullOrWhiteSpace(dto.Street) ? dto.Street : customer.Street,
+                StreetNumber = !string.IsNullOrWhiteSpace(dto.StreetNumber) ? dto.StreetNumber : customer.StreetNumber,
+                City = !string.IsNullOrWhiteSpace(dto.City) ? dto.City : customer.City,
+                ZipCode = !string.IsNullOrWhiteSpace(dto.ZipCode) ? dto.ZipCode : customer.ZipCode
             };
 
             decimal totalAmount = 0;

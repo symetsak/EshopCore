@@ -36,6 +36,7 @@ namespace Eshop.Infrastructure.Repositories
         {
             // Επιστρέφει όλες τις παραγγελίες του συγκεκριμένου Tenant (π.χ. για τον Admin)
             return await _context.Orders
+                .Include(o => o.Customer)
                 .Include(o => o.OrderItems)
                 .ThenInclude(oi => oi.Product)
                 .OrderByDescending(o => o.OrderDate)

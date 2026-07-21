@@ -150,5 +150,30 @@ namespace Eshop.Application.Services
 
             return true;
         }
+
+        public async Task<CustomerProfileDto?> GetProfileAsync(int customerId)
+        {
+            var customer = await _customerRepo.GetByIdAsync(customerId);
+            return customer == null ? null : _mapper.Map<CustomerProfileDto>(customer);
+        }
+
+        public async Task<CustomerProfileDto?> UpdateProfileAsync(int customerId, CustomerUpdateProfileDto dto)
+        {
+            var customer = await _customerRepo.GetByIdAsync(customerId);
+            if (customer == null) return null;
+
+            // Ενημέρωση των πεδίων
+            customer.FirstName = dto.FirstName;
+            customer.LastName = dto.LastName;
+            customer.Phone = dto.Phone;
+            customer.Street = dto.Street;
+            customer.StreetNumber = dto.StreetNumber;
+            customer.City = dto.City;
+            customer.ZipCode = dto.ZipCode;
+
+            await _customerRepo.SaveChangesAsync();
+
+            return _mapper.Map<CustomerProfileDto>(customer);
+        }
     }
 }

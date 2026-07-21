@@ -3,7 +3,6 @@ using Eshop.Core.DTOs;
 using Eshop.Core.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using System.Security.Claims;
 
 namespace Eshop.API.Controllers
 {
@@ -65,7 +64,7 @@ namespace Eshop.API.Controllers
 
         // GET: api/orders/admin/all
         [HttpGet("admin/all")]
-        [Authorize(Roles = "Administrator")] // Μόνο ο Admin του καταστήματος προς το παρόν
+        [Authorize(Roles = "Administrator, Employee")] 
         public async Task<IActionResult> GetAllTenantOrders()
         {
             var orders = await _orderService.GetAllTenantOrdersAsync();
@@ -74,7 +73,7 @@ namespace Eshop.API.Controllers
 
         // GET: api/Orders/admin/{id}
         [HttpGet("admin/{id}")]
-        [Authorize(Roles = "Administrator")]
+        [Authorize(Roles = "Administrator, Employee")]
         public async Task<IActionResult> GetOrderDetailsForAdmin(int id)
         {
             var order = await _orderService.GetOrderDetailsForAdminAsync(id);
@@ -89,7 +88,7 @@ namespace Eshop.API.Controllers
 
         // PUT: api/orders/admin/{id}/status
         [HttpPut("admin/{id}/status")]
-        [Authorize(Roles = "Administrator")] // Μόνο ο Admin μπορεί να αλλάξει status
+        [Authorize(Roles = "Administrator, Employee")] 
         public async Task<IActionResult> UpdateStatus(int id, [FromBody] OrderStatusUpdateDto dto)
         {
             if (string.IsNullOrEmpty(dto.Status))

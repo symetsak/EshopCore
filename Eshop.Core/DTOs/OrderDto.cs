@@ -9,6 +9,11 @@
 
         // "CashOnDelivery" ή "Card"
         public string PaymentMethod { get; set; } = "CashOnDelivery";
+
+        public string Street { get; set; } = string.Empty;
+        public string StreetNumber { get; set; } = string.Empty;
+        public string City { get; set; } = string.Empty;
+        public string ZipCode { get; set; } = string.Empty;
     }
 
     // Το κάθε προϊόν μέσα στο καλάθι
@@ -26,6 +31,13 @@
         public decimal TotalAmount { get; set; }
         public string Status { get; set; } = string.Empty;
         public int CustomerId { get; set; }
+        public string CustomerName { get; set; } = string.Empty;
+        public string Street { get; set; } = string.Empty;
+        public string StreetNumber { get; set; } = string.Empty;
+        public string City { get; set; } = string.Empty;
+        public string ZipCode { get; set; } = string.Empty;
+        public string CustomerEmail { get; set; } = string.Empty;
+        public string CustomerPhone { get; set; } = string.Empty;
         public List<OrderItemResponseDto> OrderItems { get; set; } = new List<OrderItemResponseDto>();
         public string PaymentMethod { get; set; } = null!;
     }

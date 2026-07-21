@@ -45,11 +45,16 @@ namespace Eshop.Application.DTOs
                 .ForMember(dest => dest.RefreshTokenExpiry, opt => opt.Ignore())
                 .ForMember(dest => dest.Orders, opt => opt.Ignore());
 
+            CreateMap<Customer, CustomerProfileDto>();
+
             CreateMap<Customer, CustomerAuthResponseDto>()
                 .ForMember(dest => dest.Token, opt => opt.Ignore());
 
             // 5. Orders
-            CreateMap<Order, OrderResponseDto>();
+            CreateMap<Order, OrderResponseDto>()
+                 .ForMember(dest => dest.CustomerName, opt => opt.MapFrom(src => src.Customer != null ? $"{src.Customer.FirstName} {src.Customer.LastName}" : string.Empty))
+                 .ForMember(dest => dest.CustomerEmail, opt => opt.MapFrom(src => src.Customer != null ? src.Customer.Email : string.Empty))
+                 .ForMember(dest => dest.CustomerPhone, opt => opt.MapFrom(src => src.Customer != null ? src.Customer.Phone : string.Empty));
 
             CreateMap<OrderItem, OrderItemResponseDto>()
                 .ForMember(dest => dest.ProductName, opt => opt.MapFrom(src => src.Product != null ? src.Product.Name : string.Empty));
