@@ -19,12 +19,46 @@ namespace Eshop.AdminPanel.Client.Security
 
         protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
+            // ΑΝ ΕΙΝΑΙ ΑΙΤΗΜΑ LOGIN / AUTH, ΑΦΗΣΕ ΤΟ ΝΑ ΠΕΡΑΣΕΙ ΕΛΕΥΘΕΡΑ!
+            var requestPath = request.RequestUri?.AbsolutePath.ToLower();
+            bool isAuthRequest = requestPath != null && (requestPath.Contains("/login") || requestPath.Contains("/refresh"));
+
+            if (isAuthRequest)
+            {
+                // Για το Login, αν ο χρήστης έχει γράψει το Tenant Slug στη φόρμα, 
+                // το Login page το στέλνει ήδη στο request body ή στο header!
+                return await base.SendAsync(request, cancellationToken);
+            }
+
+            // ΓΙΑ ΟΛΑ ΤΑ ΑΛΛΑ ΑΙΤΗΜΑΤΑ
+            // Διαβάζουμε το Tenant ID αυστηρά και δυναμικά από το LocalStorage
+            var tenantId = await _localStorage.GetItemAsync<string>("tenantId");
+
+            // Αν λείπει το tenantId, ο χρήστης δεν θεωρείται έγκυρα συνδεδεμένος
+            if (string.IsNullOrEmpty(tenantId))
+            {
+                await ForceLogout();
+                return new HttpResponseMessage(HttpStatusCode.Unauthorized);
+            }
+
+            // Προσθήκη του X-Tenant-Id Header αν δεν υπάρχει ήδη στο αίτημα
+            if (!request.Headers.Contains("X-Tenant-Id"))
+            {
+                request.Headers.Add("X-Tenant-Id", tenantId);
+            }
+
+            // Προσθήκη του Bearer Token Header αν υπάρχει αποθηκευμένο token
+            var token = await _localStorage.GetItemAsync<string>("authToken");
+            if (!string.IsNullOrEmpty(token) && request.Headers.Authorization == null)
+            {
+                request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+            }
+
             var response = await base.SendAsync(request, cancellationToken);
 
             // 1. Αν η απάντηση από το API είναι 401 (Unauthorized)
             if (response.StatusCode == HttpStatusCode.Unauthorized)
             {
-                var token = await _localStorage.GetItemAsync<string>("authToken");
                 var refreshToken = await _localStorage.GetItemAsync<string>("refreshToken");
 
                 // Αν δεν έχουμε tokens, πηγαίνουμε απευθείας σε logout χωρίς άσκοπες κλήσεις
@@ -46,6 +80,11 @@ namespace Eshop.AdminPanel.Client.Security
                     // 4. Φτιάχνουμε ένα ΝΕΟ request ίδιο με το αρχικό, αλλά με το ΝΕΟ token στα Headers!
                     var newRequest = CloneRequest(request);
                     newRequest.Headers.Authorization = new AuthenticationHeaderValue("bearer", newTokens.Token);
+
+                    if (!newRequest.Headers.Contains("X-Tenant-Id"))
+                    {
+                        newRequest.Headers.Add("X-Tenant-Id", tenantId);
+                    }
 
                     // 5. Ξαναστέλνουμε το request!
                     return await base.SendAsync(newRequest, cancellationToken);

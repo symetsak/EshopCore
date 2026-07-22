@@ -1,6 +1,4 @@
 ﻿using Eshop.Application.DTOs;
-using System.Collections.Generic;
-using System.Threading.Tasks;
 
 namespace Eshop.Application.Services
 {

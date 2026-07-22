@@ -88,7 +88,7 @@ namespace Eshop.API.Controllers
 
         // ENDPOINTS ΓΙΑ ΤΟΝ ΔΙΑΧΕΙΡΙΣΤΗ (Admin)
         [HttpGet("api/admin/returns")]
-        [Authorize(Roles = "Administrator")]
+        [Authorize(Roles = "Administrator, Employee")]
         public async Task<IActionResult> GetAllReturns()
         {
             var result = await _returnService.GetAllReturnsAsync();
@@ -105,7 +105,7 @@ namespace Eshop.API.Controllers
 
 
         [HttpPut("api/admin/returns/{id}/status")]
-        [Authorize(Roles = "Administrator")] 
+        [Authorize(Roles = "Administrator, Employee")]
         public async Task<IActionResult> UpdateReturnStatus(int id, [FromBody] OrderReturnStatusUpdateDto dto)
         {
             try

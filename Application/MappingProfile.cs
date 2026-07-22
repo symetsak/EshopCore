@@ -27,6 +27,10 @@ namespace Eshop.Application.DTOs
             CreateMap<Product, ProductResponseDto>()
                 .ForMember(dest => dest.Price, opt => opt.MapFrom(src => src.CurrentPrice))
                 .ForMember(dest => dest.OriginalPrice, opt => opt.MapFrom(src => src.Price))
+                .ForMember(dest => dest.SalePrice, opt => opt.MapFrom(src =>
+                    (src.SalePrice.HasValue && src.SaleEndDate.HasValue && src.SaleEndDate.Value < DateTime.UtcNow)
+                    ? null
+                    : src.SalePrice))
                 .ReverseMap();
 
             // 3. Categories
@@ -73,8 +77,9 @@ namespace Eshop.Application.DTOs
 
             // 9. Order Return Mappings
             CreateMap<OrderReturn, OrderReturnResponseDto>();
+
             CreateMap<OrderReturnItem, OrderReturnItemResponseDto>()
-                .ForMember(dest => dest.ProductName, opt => opt.MapFrom(src => src.Product.Name));
+                .ForMember(dest => dest.ProductName, opt => opt.MapFrom(src => src.Product != null ? src.Product.Name : "Άγνωστο Προϊόν"));
         }
     }
 }

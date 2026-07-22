@@ -2,10 +2,6 @@
 using Eshop.Application.DTOs;
 using Eshop.Core.Entities;
 using Eshop.Core.Interfaces;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
 
 namespace Eshop.Application.Services
 {
@@ -172,7 +168,7 @@ namespace Eshop.Application.Services
         public async Task<OrderReturnResponseDto?> UpdateReturnStatusAsync(int returnId, OrderReturnStatusUpdateDto dto)
         {
             // Λίστα με τα επιτρεπόμενα Status Επιστροφής
-            var allowedReturnStatuses = new[] { "Requested", "Received", "Approved", "Rejected", "Refunded" };
+            var allowedReturnStatuses = new[] { "Requested", "Accepted", "Received", "Approved", "Rejected", "Refunded" };
 
             if (!allowedReturnStatuses.Contains(dto.Status, StringComparer.OrdinalIgnoreCase))
             {
@@ -210,7 +206,12 @@ namespace Eshop.Application.Services
             string notificationTitle = "Ενημέρωση Επιστροφής";
             string notificationMessage = $"Η κατάσταση του αιτήματος επιστροφής σας άλλαξε σε: {newStatus}.";
 
-            if (newStatus.Equals("Received", StringComparison.OrdinalIgnoreCase))
+            if (newStatus.Equals("Accepted", StringComparison.OrdinalIgnoreCase))
+            {
+                notificationTitle = "Το αίτημα επιστροφής έγινε δεκτό!";
+                notificationMessage = $"Το αίτημα για την επιστροφή #{orderReturn.Id} εγκρίθηκε. Παρακαλούμε αποστείλετε το δέμα στη διεύθυνση του καταστήματός μας.";
+            }
+            else if (newStatus.Equals("Received", StringComparison.OrdinalIgnoreCase))
             {
                 notificationTitle = "Λάβαμε τα επιστρεφόμενα προϊόντα!";
                 notificationMessage = $"Τα προϊόντα της επιστροφής #{orderReturn.Id} έφτασαν στις εγκαταστάσεις μας και περνάνε από ποιοτικό έλεγχο.";
