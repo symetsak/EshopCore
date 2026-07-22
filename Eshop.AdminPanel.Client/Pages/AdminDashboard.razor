@@ -1,5 +1,6 @@
 ﻿@page "/admin/dashboard"
 @attribute [Authorize(Roles = "Administrator, Employee")]
+@using Eshop.AdminPanel.Client.Models
 @inject HttpClient Http
 @inject ISnackbar Snackbar
 @inject Blazored.LocalStorage.ILocalStorageService LocalStorage
@@ -23,6 +24,39 @@
     }
     else
     {
+        <!-- ΕΠΙΧΕΙΡΗΣΙΑΚΕΣ ΚΑΡΤΕΣ / ΕΚΚΡΕΜΟΤΗΤΕΣ (Για όλους τους χρήστες - To-Do List) -->
+        <MudGrid Class="mb-6">
+            <MudItem XS="12" SM="4">
+                <MudPaper Class="pa-4 d-flex align-center justify-space-between" Elevation="2" Style="border-left: 5px solid var(--mud-palette-warning); border-radius: 8px;">
+                    <div>
+                        <MudText Typo="Typo.subtitle2" Class="mud-text-secondary font-weight-bold">Παραγγελίες προς Αποστολή</MudText>
+                        <MudText Typo="Typo.h5" Class="font-weight-bold mt-1" Color="Color.Warning">@_stats.PendingOrdersCount</MudText>
+                    </div>
+                    <MudIcon Icon="@Icons.Material.Filled.LocalShipping" Color="Color.Warning" Style="font-size: 2.5rem;" />
+                </MudPaper>
+            </MudItem>
+
+            <MudItem XS="12" SM="4">
+                <MudPaper Class="pa-4 d-flex align-center justify-space-between" Elevation="2" Style="border-left: 5px solid var(--mud-palette-error); border-radius: 8px;">
+                    <div>
+                        <MudText Typo="Typo.subtitle2" Class="mud-text-secondary font-weight-bold">Προϊόντα σε Έλλειψη (Low Stock)</MudText>
+                        <MudText Typo="Typo.h5" Class="font-weight-bold mt-1" Color="Color.Error">@_stats.LowStockProductsCount</MudText>
+                    </div>
+                    <MudIcon Icon="@Icons.Material.Filled.Inventory" Color="Color.Error" Style="font-size: 2.5rem;" />
+                </MudPaper>
+            </MudItem>
+
+            <MudItem XS="12" SM="4">
+                <MudPaper Class="pa-4 d-flex align-center justify-space-between" Elevation="2" Style="border-left: 5px solid var(--mud-palette-info); border-radius: 8px;">
+                    <div>
+                        <MudText Typo="Typo.subtitle2" Class="mud-text-secondary font-weight-bold">Εκκρεμείς Επιστροφές</MudText>
+                        <MudText Typo="Typo.h5" Class="font-weight-bold mt-1" Color="Color.Info">@_stats.PendingReturnsCount</MudText>
+                    </div>
+                    <MudIcon Icon="@Icons.Material.Filled.AssignmentReturn" Color="Color.Info" Style="font-size: 2.5rem;" />
+                </MudPaper>
+            </MudItem>
+        </MudGrid>
+
         <!-- ΠΑΝΩ ΚΑΡΤΕΣ (Στατιστικά) -->
         <MudGrid Class="mb-8">
 
@@ -72,27 +106,39 @@
         <!-- ΚΑΤΩ ΜΕΡΟΣ (Γραφήματα & Λίστες) -->
         <MudGrid>
 
-            <!-- Το γράφημα Τζίρου εμφανίζεται ΜΟΝΟ στον Administrator -->
+            <!-- Ο Τζίρος ανά Κατηγορία εμφανίζεται ΜΟΝΟ στον Administrator -->
             <AuthorizeView Roles="Administrator">
                 <Authorized>
                     <MudItem XS="12" MD="5">
                         <MudPaper Class="pa-6" Elevation="3" Style="border-radius: 12px; height: 100%;">
                             <MudText Typo="Typo.h6" Class="font-weight-bold mb-4">Τζίρος ανά Κατηγορία</MudText>
 
-                            @if (_stats.RevenueByCategory.Any())
+                            @if (_stats != null && _stats.RevenueByCategory != null && _stats.RevenueByCategory.Any())
                             {
-                                <div class="d-flex justify-center">
-                                    <MudChart T="double"
-                                              ChartType="ChartType.Donut"
-                                              Width="280px"
-                                              Height="280px"
-                                              InputData="@_chartData"
-                                              InputLabels="@_chartLabels" />
-                                </div>
+                                // Βρίσκουμε τον μεγαλύτερο τζίρο για να υπολογίσουμε το 100% της μπάρας
+                                var maxRevenue = _stats.RevenueByCategory.Max(c => c.TotalRevenue);
+
+                                <MudList T="string" Dense="true" Class="w-100 px-0">
+                                    @foreach (var category in _stats.RevenueByCategory)
+                                    {
+                                        // Υπολογισμός ποσοστού % για την μπάρα
+                                        var percentage = maxRevenue > 0 ? (category.TotalRevenue / maxRevenue) * 100 : 0;
+
+                                        <div class="mb-4">
+                                            <div class="d-flex justify-space-between mb-1">
+                                                <MudText Typo="Typo.body2" Class="font-weight-bold">@category.CategoryName</MudText>
+                                                <MudText Typo="Typo.body2" Color="Color.Success" Class="font-weight-bold">@category.TotalRevenue.ToString("C2")</MudText>
+                                            </div>
+                                            <MudProgressLinear Color="Color.Primary" Value="@((double)percentage)" Size="Size.Medium" Rounded="true" />
+                                        </div>
+                                    }
+                                </MudList>
                             }
                             else
                             {
-                                <MudText Typo="Typo.body2" Class="mud-text-secondary text-center py-8">Δεν υπάρχουν δεδομένα κατηγοριών.</MudText>
+                                <MudText Typo="Typo.body2" Class="mud-text-secondary text-center py-8">
+                                    Δεν υπάρχουν δεδομένα κατηγοριών.
+                                </MudText>
                             }
                         </MudPaper>
                     </MudItem>
@@ -141,9 +187,6 @@
     private bool _isLoading = true;
     private bool _isAdmin = false; // Εδώ αποθηκεύουμε αν είναι Admin
 
-    private double[] _chartData = Array.Empty<double>();
-    private string[] _chartLabels = Array.Empty<string>();
-
     protected override async Task OnInitializedAsync()
     {
         try
@@ -177,16 +220,7 @@
             if (response.IsSuccessStatusCode)
             {
                 _stats = await response.Content.ReadFromJsonAsync<AdminDashboardModel>();
-
-                if (_stats != null)
-                {
-                    _chartData = _stats.RevenueByCategory.Select(c => (double)c.TotalRevenue).ToArray();
-                    _chartLabels = _stats.RevenueByCategory.Select(c => $"{c.CategoryName} ({c.TotalRevenue.ToString("C0")})").ToArray();
-                }
-            }
-            else
-            {
-                Snackbar.Add($"Αποτυχία λήψης στατιστικών (Status: {response.StatusCode})", Severity.Error);
+                StateHasChanged();
             }
         }
         catch (Exception ex)

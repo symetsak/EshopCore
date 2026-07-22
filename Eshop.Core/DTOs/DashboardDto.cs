@@ -7,6 +7,9 @@
         public decimal AverageOrderValue { get; set; }
         public List<TopProductDto> TopProducts { get; set; } = new List<TopProductDto>();
         public List<CategoryRevenueDto> RevenueByCategory { get; set; } = new List<CategoryRevenueDto>();
+        public int PendingOrdersCount { get; set; }
+        public int PendingReturnsCount { get; set; }
+        public int LowStockProductsCount { get; set; }
     }
 
     public class TopProductDto
