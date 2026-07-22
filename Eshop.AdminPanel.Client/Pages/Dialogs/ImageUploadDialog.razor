@@ -1,0 +1,182 @@
+﻿@inject HttpClient Http
+@inject ISnackbar Snackbar
+@inject Blazored.LocalStorage.ILocalStorageService LocalStorage
+
+<MudDialog>
+    <TitleContent>
+        <MudText Typo="Typo.h6">
+            <MudIcon Icon="@Icons.Material.Filled.CloudUpload" Class="mr-2" />
+            Διαχείριση Εικόνας: @Product.Name
+        </MudText>
+    </TitleContent>
+    <DialogContent>
+        <div class="d-flex flex-column align-center justify-center pa-4">
+            
+            @if (!string.IsNullOrEmpty(_previewUrl))
+            {
+                <img src="@_previewUrl" alt="Preview" style="max-width: 200px; max-height: 200px; object-fit: cover; border-radius: 12px; border: 2px solid var(--mud-palette-primary);" class="mb-4" />
+            }
+            else if (!string.IsNullOrEmpty(Product.ImageUrl))
+            {
+                <img src="@Product.ImageUrl" alt="Current Image" style="max-width: 200px; max-height: 200px; object-fit: cover; border-radius: 12px;" class="mb-4" />
+            }
+            else
+            {
+                <div class="d-flex flex-column align-center justify-center py-8 mb-4" style="border: 2px dashed var(--mud-palette-lines-inputs); border-radius: 12px; width: 200px; height: 200px;">
+                    <MudIcon Icon="@Icons.Material.Filled.ImageNotSupported" Style="font-size: 3rem;" Color="Color.Secondary" />
+                    <MudText Typo="Typo.caption" Class="mud-text-secondary mt-2">Χωρίς εικόνα</MudText>
+                </div>
+            }
+
+            <div class="d-flex gap-4">
+                <MudFileUpload T="IBrowserFile" FilesChanged="OnFilesChanged" Accept=".jpg,.jpeg,.png">
+                    <MudButton HtmlTag="label"
+                               Variant="Variant.Filled"
+                               Color="Color.Primary"
+                               StartIcon="@Icons.Material.Filled.PhotoCamera">
+                        Επιλογή Εικόνας
+                    </MudButton>
+                </MudFileUpload>
+
+                @if (!string.IsNullOrEmpty(Product.ImageUrl) && string.IsNullOrEmpty(_previewUrl))
+                {
+                    <MudButton Variant="Variant.Outlined" Color="Color.Error" StartIcon="@Icons.Material.Filled.Delete" OnClick="DeleteImage" Disabled="_isWorking">
+                        Διαγραφή
+                    </MudButton>
+                }
+            </div>
+
+            @if (_selectedFile != null)
+            {
+                <MudText Typo="Typo.body2" Class="mt-3 font-weight-bold" Color="Color.Success">
+                    Επιλέχθηκε: @_selectedFile.Name (@((_selectedFile.Size / 1024.0).ToString("F1")) KB)
+                </MudText>
+            }
+        </div>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel" Variant="Variant.Text">Ακύρωση</MudButton>
+        <MudButton Color="Color.Success" Variant="Variant.Filled" OnClick="UploadImage" Disabled="@(_selectedFile == null || _isWorking)">
+            @if (_isWorking)
+            {
+                <MudProgressCircular Class="ms-n1" Size="Size.Small" Indeterminate="true" />
+                <span class="ms-2">Ανέβασμα...</span>
+            }
+            else
+            {
+                <span>Ανέβασμα Εικόνας</span>
+            }
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] IMudDialogInstance MudDialog { get; set; } = null!;
+
+    [Parameter] public ProductResponseModel Product { get; set; } = null!;
+
+    private IBrowserFile? _selectedFile;
+    private string? _previewUrl;
+    private bool _isWorking = false;
+
+    // Καλούμενη όταν ο χρήστης επιλέγει αρχείο
+    private async Task OnFilesChanged(IBrowserFile file)
+    {
+        _selectedFile = file;
+        if (_selectedFile != null)
+        {
+            var resizedImage = await _selectedFile.RequestImageFileAsync(_selectedFile.ContentType, 300, 300);
+            var buffer = new byte[resizedImage.Size];
+            await resizedImage.OpenReadStream().ReadAsync(buffer);
+            _previewUrl = $"data:{_selectedFile.ContentType};base64,{Convert.ToBase64String(buffer)}";
+        }
+    }
+
+    // Ανέβασμα της εικόνας στο API
+    private async Task UploadImage()
+    {
+        if (_selectedFile == null) return;
+
+        _isWorking = true;
+        try
+        {
+            var content = new MultipartFormDataContent();
+            // Περιορισμός μεγέθους stream (π.χ. max 5MB)
+            var fileStream = _selectedFile.OpenReadStream(maxAllowedSize: 1024 * 1024 * 5); 
+            var streamContent = new StreamContent(fileStream);
+            streamContent.Headers.ContentType = new MediaTypeHeaderValue(_selectedFile.ContentType);
+            
+            // Το όνομα της παραμέτρου ("file") πρέπει να είναι ακριβώς ίδιο με το όνομα της παραμέτρου IFormFile στον Controller σου!
+            content.Add(streamContent, "file", _selectedFile.Name);
+
+            var request = new HttpRequestMessage(HttpMethod.Post, $"api/Products/{Product.Id}/image");
+            request.Content = content;
+
+            var tenantId = await LocalStorage.GetItemAsync<string>("tenantId");
+            var token = await LocalStorage.GetItemAsync<string>("authToken");
+
+            if (!string.IsNullOrEmpty(tenantId)) request.Headers.Add("X-Tenant-Id", tenantId);
+            if (!string.IsNullOrEmpty(token)) request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+            var response = await Http.SendAsync(request);
+
+            if (response.IsSuccessStatusCode)
+            {
+                Snackbar.Add("Η εικόνα ανέβηκε με επιτυχία!", Severity.Success);
+                MudDialog.Close(DialogResult.Ok(true));
+            }
+            else
+            {
+                var errorMsg = await response.Content.ReadAsStringAsync();
+                Snackbar.Add($"Αποτυχία ανεβάσματος εικόνας: {errorMsg}", Severity.Error);
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Σφάλμα: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _isWorking = false;
+        }
+    }
+
+    // Διαγραφή εικόνας από το API
+    private async Task DeleteImage()
+    {
+        _isWorking = true;
+        try
+        {
+            var request = new HttpRequestMessage(HttpMethod.Delete, $"api/Products/{Product.Id}/image");
+
+            var tenantId = await LocalStorage.GetItemAsync<string>("tenantId");
+            var token = await LocalStorage.GetItemAsync<string>("authToken");
+
+            if (!string.IsNullOrEmpty(tenantId)) request.Headers.Add("X-Tenant-Id", tenantId);
+            if (!string.IsNullOrEmpty(token)) request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+            var response = await Http.SendAsync(request);
+
+            if (response.IsSuccessStatusCode)
+            {
+                Snackbar.Add("Η εικόνα διαγράφηκε επιτυχώς!", Severity.Success);
+                MudDialog.Close(DialogResult.Ok(true));
+            }
+            else
+            {
+                var errorMsg = await response.Content.ReadAsStringAsync();
+                Snackbar.Add($"Αποτυχία διαγραφής: {errorMsg}", Severity.Error);
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Σφάλμα: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _isWorking = false;
+        }
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+}

@@ -9,5 +9,6 @@ namespace Eshop.Core.Interfaces
         Task<Customer?> GetByRefreshTokenAsync(string refreshToken);
         Task AddAsync(Customer customer);
         Task SaveChangesAsync();
+        void Update(Customer customer);
     }
 }

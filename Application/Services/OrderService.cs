@@ -8,20 +8,24 @@ namespace Eshop.Application.Services
     public class OrderService : IOrderService
     {
         private readonly IOrderRepository _orderRepo;
+        private readonly ICustomerRepository _customerRepo; // Για ανάσυρση των default στοιχείων διεύθυνσης του πελάτη
         private readonly IProductRepository _productRepo; // Για έλεγχο και ενημέρωση του Stock
         private readonly IMapper _mapper;
         private readonly INotificationRepository _notificationRepo;
         private readonly IEshopNotificationService _notificationService;
         private readonly ITenantProvider _tenantProvider;
+        private readonly IOrderReturnRepository _returnRepo;
 
-        public OrderService(IOrderRepository orderRepo, IProductRepository productRepo, IMapper mapper, INotificationRepository notificationRepo, IEshopNotificationService notificationService, ITenantProvider tenantProvider)
+        public OrderService(IOrderRepository orderRepo, ICustomerRepository customerRepo, IProductRepository productRepo, IMapper mapper, INotificationRepository notificationRepo, IEshopNotificationService notificationService, ITenantProvider tenantProvider, IOrderReturnRepository returnRepo)
         {
             _orderRepo = orderRepo;
+            _customerRepo = customerRepo;
             _productRepo = productRepo;
             _mapper = mapper;
             _notificationRepo = notificationRepo;
             _notificationService = notificationService;
             _tenantProvider = tenantProvider;
+            _returnRepo = returnRepo;
         }
 
         public async Task<OrderResponseDto> CreateOrderAsync(int customerId, OrderCreateDto dto)
@@ -31,10 +35,17 @@ namespace Eshop.Application.Services
                 throw new InvalidOperationException("Το καλάθι αγορών είναι άδειο.");
             }
 
+            // Φέρνουμε τον πελάτη από τη βάση για να διαβάσουμε τα default στοιχεία διεύθυνσης
+            var customer = await _customerRepo.GetByIdAsync(customerId);
+            if (customer == null)
+            {
+                throw new KeyNotFoundException($"Ο πελάτης με ID {customerId} δεν βρέθηκε.");
+            }
+
             // 1. ΔΥΝΑΜΙΚΟΣ ΚΑΘΟΡΙΣΜΟΣ STATUS ΒΑΣΕΙ ΤΡΟΠΟΥ ΠΛΗΡΩΜΗΣ
             // Αν είναι Κάρτα πάει κατευθείαν "Paid", αλλιώς (Αντικαταβολή) μένει "Pending"
             string initialStatus = dto.PaymentMethod.Equals("Card", StringComparison.OrdinalIgnoreCase)
-                ? "PendingPaid"
+                ? "PendingPayment"
                 : "Pending";
 
             // 2. Δημιουργία του βασικού αντικειμένου της Παραγγελίας
@@ -44,7 +55,13 @@ namespace Eshop.Application.Services
                 OrderDate = DateTime.UtcNow,
                 Status = initialStatus,
                 PaymentMethod = dto.PaymentMethod,
-                TotalAmount = 0
+                TotalAmount = 0,
+
+                // Fallback Logic Διεύθυνσης: Αν στάλθηκε νέα διεύθυνση από το Checkout τη χρησιμοποιούμε, αλλιώς παίρνουμε τη default του Customer
+                Street = !string.IsNullOrWhiteSpace(dto.Street) ? dto.Street : customer.Street,
+                StreetNumber = !string.IsNullOrWhiteSpace(dto.StreetNumber) ? dto.StreetNumber : customer.StreetNumber,
+                City = !string.IsNullOrWhiteSpace(dto.City) ? dto.City : customer.City,
+                ZipCode = !string.IsNullOrWhiteSpace(dto.ZipCode) ? dto.ZipCode : customer.ZipCode
             };
 
             decimal totalAmount = 0;
@@ -282,23 +299,41 @@ namespace Eshop.Application.Services
             // 4. ΝΕΟ Advanced LINQ: Τζίρος ανά Κατηγορία Προϊόντος
             var revenueByCategory = activeOrders
                 .SelectMany(o => o.OrderItems)
-                .GroupBy(item => item.Product != null && item.Product.Category != null ? item.Product.Category.Name : "Χωρίς Κατηγορία")
+                .Where(item => item.Product != null && item.Product.Category != null) // Διασφαλίζουμε ότι υπάρχουν τα navigation properties
+                .GroupBy(item => item.Product!.Category!.Name) // Παίρνουμε απευθείας το όνομα της Κατηγορίας
                 .Select(group => new CategoryRevenueDto
                 {
                     CategoryName = group.Key,
                     TotalRevenue = group.Sum(item => item.Quantity * item.UnitPrice)
                 })
+                .Where(c => c.TotalRevenue > 0)
                 .OrderByDescending(c => c.TotalRevenue)
                 .ToList();
+
+            // ΥΠΟΛΟΓΙΣΜΟΣ ΝΕΩΝ ΜΕΤΡΙΚΩΝ ΓΙΑ ΥΠΑΛΛΗΛΟΥΣ ΚΑΙ ADMINS
+            var pendingOrders = activeOrders.Count(o => o.Status.Equals("Pending", StringComparison.OrdinalIgnoreCase) || o.Status.Equals("Paid", StringComparison.OrdinalIgnoreCase));
+
+            var allProducts = await _productRepo.GetAllAsync();
+            var lowStockCount = allProducts.Count(p => p.StockQuantity <= 5);
+
+            var allReturns = await _returnRepo.GetAllReturnsAsync();
+            var pendingReturns = allReturns.Count(r => r.Status.Equals("Requested", StringComparison.OrdinalIgnoreCase) || r.Status.Equals("Received", StringComparison.OrdinalIgnoreCase));
+
+            Console.WriteLine($"Total active order items: {activeOrders.SelectMany(o => o.OrderItems).Count()}");
+            Console.WriteLine($"Items with Product loaded: {activeOrders.SelectMany(o => o.OrderItems).Count(i => i.Product != null)}");
+            Console.WriteLine($"Items with Category loaded: {activeOrders.SelectMany(o => o.OrderItems).Count(i => i.Product?.Category != null)}");
 
             // 5. Επιστροφή του τελικού, πλήρους DTO
             return new AdminDashboardDto
             {
                 TotalRevenue = totalRevenue,
                 TotalOrdersCount = totalOrdersCount,
-                AverageOrderValue = Math.Round(averageOrderValue, 2), // Στρογγυλοποίηση σε 2 δεκαδικά
+                AverageOrderValue = Math.Round(averageOrderValue, 2),
                 TopProducts = topProducts,
-                RevenueByCategory = revenueByCategory
+                RevenueByCategory = revenueByCategory,
+                PendingOrdersCount = pendingOrders,
+                PendingReturnsCount = pendingReturns,
+                LowStockProductsCount = lowStockCount
             };
         }
         public async Task<OrderResponseDto?> GetOrderDetailsForAdminAsync(int orderId) =>

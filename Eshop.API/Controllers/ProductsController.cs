@@ -145,5 +145,21 @@ namespace Eshop.API.Controllers
                 return BadRequest(new { message = ex.Message });
             }
         }
+
+        [HttpDelete("{id}/discounts")]
+        [Authorize(Roles = "Administrator")]
+        [TenantAuthorize]
+        public async Task<IActionResult> RemoveProductDiscount(int id)
+        {
+            try
+            {
+                await _productService.RemoveDiscountAsync(id);
+                return Ok(new { message = "Η προσφορά αφαιρέθηκε με επιτυχία!" });
+            }
+            catch (KeyNotFoundException ex)
+            {
+                return NotFound(new { message = ex.Message });
+            }
+        }
     }
 }

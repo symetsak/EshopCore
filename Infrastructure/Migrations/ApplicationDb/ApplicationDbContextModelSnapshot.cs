@@ -154,10 +154,10 @@ namespace Eshop.Infrastructure.Migrations.ApplicationDb
 
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
 
-                    b.Property<string>("Address")
+                    b.Property<string>("City")
                         .IsRequired()
-                        .HasMaxLength(250)
-                        .HasColumnType("character varying(250)");
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
 
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
@@ -192,6 +192,21 @@ namespace Eshop.Infrastructure.Migrations.ApplicationDb
 
                     b.Property<DateTime>("RefreshTokenExpiry")
                         .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Street")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("StreetNumber")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<string>("ZipCode")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
 
                     b.HasKey("Id");
 
@@ -245,6 +260,10 @@ namespace Eshop.Infrastructure.Migrations.ApplicationDb
 
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
 
+                    b.Property<string>("City")
+                        .IsRequired()
+                        .HasColumnType("text");
+
                     b.Property<int>("CustomerId")
                         .HasColumnType("integer");
 
@@ -262,11 +281,23 @@ namespace Eshop.Infrastructure.Migrations.ApplicationDb
                         .IsRequired()
                         .HasColumnType("text");
 
+                    b.Property<string>("Street")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("StreetNumber")
+                        .IsRequired()
+                        .HasColumnType("text");
+
                     b.Property<decimal>("TotalAmount")
                         .HasColumnType("numeric");
 
                     b.Property<int?>("UserId")
                         .HasColumnType("integer");
+
+                    b.Property<string>("ZipCode")
+                        .IsRequired()
+                        .HasColumnType("text");
 
                     b.HasKey("Id");
 
@@ -532,6 +563,10 @@ namespace Eshop.Infrastructure.Migrations.ApplicationDb
                         .IsRequired()
                         .HasColumnType("text");
 
+                    b.Property<string>("PhoneNumber")
+                        .IsRequired()
+                        .HasColumnType("text");
+
                     b.Property<string>("Role")
                         .IsRequired()
                         .HasColumnType("text");
@@ -554,9 +589,39 @@ namespace Eshop.Infrastructure.Migrations.ApplicationDb
                             IsFirstLogin = true,
                             LastName = "Admin",
                             PasswordHash = "$2a$11$fX1Z7.h2bXQenQ/K3d0fbeU3Zp7Z7WkO8/j7YAnF.gXjbe5Q2WdmG",
+                            PhoneNumber = "",
                             Role = "Administrator",
                             Username = "admin"
                         });
+                });
+
+            modelBuilder.Entity("Eshop.Core.Entities.UserNote", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Content")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CreatedBy")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<int>("UserId")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("UserNotes");
                 });
 
             modelBuilder.Entity("Eshop.Core.Entities.Wishlist", b =>
@@ -702,6 +767,17 @@ namespace Eshop.Infrastructure.Migrations.ApplicationDb
                     b.Navigation("User");
                 });
 
+            modelBuilder.Entity("Eshop.Core.Entities.UserNote", b =>
+                {
+                    b.HasOne("Eshop.Core.Entities.User", "User")
+                        .WithMany("Notes")
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("User");
+                });
+
             modelBuilder.Entity("Eshop.Core.Entities.Wishlist", b =>
                 {
                     b.HasOne("Eshop.Core.Entities.Product", "Product")
@@ -740,6 +816,8 @@ namespace Eshop.Infrastructure.Migrations.ApplicationDb
 
             modelBuilder.Entity("Eshop.Core.Entities.User", b =>
                 {
+                    b.Navigation("Notes");
+
                     b.Navigation("Orders");
                 });
 #pragma warning restore 612, 618

@@ -25,8 +25,17 @@ namespace Eshop.Core.Entities
         [MaxLength(20)]
         public string Phone { get; set; } = string.Empty;
 
-        [MaxLength(250)]
-        public string Address { get; set; } = string.Empty;
+        [MaxLength(100)]
+        public string Street { get; set; } = string.Empty;
+
+        [MaxLength(20)]
+        public string StreetNumber { get; set; } = string.Empty;
+
+        [MaxLength(100)]
+        public string City { get; set; } = string.Empty;
+
+        [MaxLength(20)]
+        public string ZipCode { get; set; } = string.Empty;
 
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 

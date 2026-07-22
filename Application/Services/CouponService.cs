@@ -1,6 +1,8 @@
 ﻿using Eshop.Core.Interfaces;
-using System;
-using System.Threading.Tasks;
+using Eshop.Core.Entities;
+using Eshop.Core.DTOs;
+using System.Globalization;
+
 
 namespace Eshop.Application.Services
 {
@@ -13,36 +15,124 @@ namespace Eshop.Application.Services
             _couponRepo = couponRepo;
         }
 
+        // Η υπάρχουσα μέθοδος σου παραμένει ίδια:
         public async Task<decimal> CalculateDiscountAsync(string code, decimal currentSubTotal)
         {
             if (string.IsNullOrWhiteSpace(code)) return 0;
-
             var coupon = await _couponRepo.GetByCodeAsync(code);
-
-            // 1. Έλεγχος ύπαρξης και ενεργοποίησης
             if (coupon == null || !coupon.IsActive) return 0;
-
-            // 2. Έλεγχος ημερομηνιών λήξης
             var now = DateTime.UtcNow;
             if (now < coupon.StartDate || now > coupon.EndDate) return 0;
-
-            // 3. Έλεγχος ελάχιστου ορίου αγορών
             if (currentSubTotal < coupon.MinimumSubTotalRequired) return 0;
 
-            // 4. Υπολογισμός Έκπτωσης βάσει τύπου
             if (coupon.DiscountType.Equals("Percentage", StringComparison.OrdinalIgnoreCase))
-            {
-                // Ποσοστιαία έκπτωση (π.χ. SubTotal = 100€, Value = 20 -> Έκπτωση 20€)
                 return currentSubTotal * (coupon.DiscountValue / 100);
-            }
             else if (coupon.DiscountType.Equals("FixedAmount", StringComparison.OrdinalIgnoreCase))
-            {
-                // Σταθερό ποσό έκπτωσης (π.χ. Value = 10€). 
-                // Προστασία: Η έκπτωση δεν μπορεί να είναι μεγαλύτερη από το ίδιο το subtotal!
                 return Math.Min(coupon.DiscountValue, currentSubTotal);
-            }
 
             return 0;
+        }
+
+        public async Task<IEnumerable<Coupon>> GetAllCouponsAsync()
+        {
+            return await _couponRepo.GetAllAsync();
+        }
+
+        public async Task<Coupon?> GetCouponByCodeAsync(string code)
+        {
+            return await _couponRepo.GetByCodeAsync(code);
+        }
+
+        public async Task<Coupon> CreateCouponAsync(CreateCouponDto dto)
+        {
+            // Business Logic Validations
+            if (!DateTime.TryParseExact(dto.StartDate, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var parsedStartDate) ||
+                !DateTime.TryParseExact(dto.EndDate, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var parsedEndDate))
+            {
+                throw new ArgumentException("Μη έγκυρη μορφή ημερομηνίας. Χρησιμοποιήστε αυστηρά το format YYYY-MM-DD.");
+            }
+
+            if (parsedStartDate >= parsedEndDate)
+            {
+                throw new ArgumentException("Η ημερομηνία έναρξης πρέπει να είναι προγενέστερη της ημερομηνίας λήξης.");
+            }
+
+            var existing = await _couponRepo.GetByCodeAsync(dto.Code);
+            if (existing != null)
+            {
+                throw new InvalidOperationException($"Υπάρχει ήδη καταχωρημένο κουπόνι με τον κωδικό '{dto.Code}'.");
+            }
+
+            var coupon = new Coupon
+            {
+                Code = dto.Code.ToUpper(),
+                DiscountType = dto.DiscountType,
+                DiscountValue = dto.DiscountValue,
+                MinimumSubTotalRequired = dto.MinimumSubTotalRequired,
+                StartDate = DateTime.SpecifyKind(parsedStartDate, DateTimeKind.Utc),
+                EndDate = DateTime.SpecifyKind(parsedEndDate, DateTimeKind.Utc),
+                IsActive = dto.IsActive
+            };
+
+            await _couponRepo.AddAsync(coupon);
+            await _couponRepo.SaveChangesAsync();
+
+            return coupon;
+        }
+
+        public async Task<Coupon> UpdateCouponAsync(int id, CreateCouponDto dto)
+        {
+            var coupon = await _couponRepo.GetByIdAsync(id);
+            if (coupon == null)
+            {
+                throw new KeyNotFoundException("Το κουπόνι δεν βρέθηκε.");
+            }
+
+            if (!DateTime.TryParseExact(dto.StartDate, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var parsedStartDate) ||
+                !DateTime.TryParseExact(dto.EndDate, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var parsedEndDate))
+            {
+                throw new ArgumentException("Μη έγκυρη μορφή ημερομηνίας. Χρησιμοποιήστε αυστηρά το format YYYY-MM-DD.");
+            }
+
+            if (parsedStartDate >= parsedEndDate)
+            {
+                throw new ArgumentException("Η ημερομηνία έναρξης πρέπει να είναι προγενέστερη της ημερομηνίας λήξης.");
+            }
+
+            // Αν ο Admin άλλαξε τον κωδικό, ελέγχουμε μήπως υπάρχει ήδη άλλος με το νέο όνομα
+            if (!string.Equals(coupon.Code, dto.Code, StringComparison.OrdinalIgnoreCase))
+            {
+                var existing = await _couponRepo.GetByCodeAsync(dto.Code);
+                if (existing != null)
+                {
+                    throw new InvalidOperationException($"Υπάρχει ήδη καταχωρημένο κουπόνι με τον κωδικό '{dto.Code}'.");
+                }
+            }
+
+            coupon.Code = dto.Code.ToUpper();
+            coupon.DiscountType = dto.DiscountType;
+            coupon.DiscountValue = dto.DiscountValue;
+            coupon.MinimumSubTotalRequired = dto.MinimumSubTotalRequired;
+            coupon.StartDate = DateTime.SpecifyKind(parsedStartDate, DateTimeKind.Utc);
+            coupon.EndDate = DateTime.SpecifyKind(parsedEndDate, DateTimeKind.Utc);
+            coupon.IsActive = dto.IsActive;
+
+            await _couponRepo.UpdateAsync(coupon);
+            await _couponRepo.SaveChangesAsync();
+
+            return coupon;
+        }
+
+        public async Task DeleteCouponAsync(int id)
+        {
+            var coupon = await _couponRepo.GetByIdAsync(id);
+            if (coupon == null)
+            {
+                throw new KeyNotFoundException("Το κουπόνι δεν βρέθηκε.");
+            }
+
+            await _couponRepo.DeleteAsync(coupon);
+            await _couponRepo.SaveChangesAsync();
         }
     }
 }

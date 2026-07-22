@@ -38,5 +38,10 @@ namespace Eshop.Infrastructure.Repositories
         {
             return await _context.Customers.FirstOrDefaultAsync(c => c.RefreshToken == refreshToken);
         }
+
+        public void Update(Customer customer)
+        {
+            _context.Customers.Update(customer);
+        }
     }
 }

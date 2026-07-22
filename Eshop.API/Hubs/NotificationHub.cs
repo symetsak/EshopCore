@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 
 namespace Eshop.API.Hubs
 {
-    // [Authorize(AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme)]
+    [Authorize(AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme)]
     public class NotificationHub : Hub
     {
         // Εκτελείται αυτόματα τη στιγμή που ένας χρήστης (Admin ή Customer) συνδέεται στο SignalR
@@ -20,12 +20,12 @@ namespace Eshop.API.Hubs
             {
                 var tenantLower = tenantIdClaim.ToLower().Trim();
 
-                if (roleClaim == "Administrator")
+                if (roleClaim == "Administrator" || roleClaim == "Employee")
                 {
-                    // Οι Admins μπαίνουν στο κοινό διαχειριστικό Group του Tenant
+                    // Οι Admins και οι Employees μπαίνουν στο κοινό διαχειριστικό Group του Tenant
                     var adminGroupName = $"Group_{tenantLower}_Admins";
                     await Groups.AddToGroupAsync(Context.ConnectionId, adminGroupName);
-                    Console.WriteLine($"[SignalR] Ο Admin {Context.ConnectionId} μπήκε στο κοινό κανάλι: {adminGroupName}");
+                    Console.WriteLine($"[SignalR] Το Staff μέλος {Context.ConnectionId} μπήκε στο κανάλι: {adminGroupName}");
                 }
                 else
                 {

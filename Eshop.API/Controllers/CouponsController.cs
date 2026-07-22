@@ -1,9 +1,7 @@
 ﻿using Eshop.Core.DTOs;
-using Eshop.Core.Entities;
 using Eshop.Core.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using System.Globalization;
 
 namespace Eshop.API.Controllers
 {
@@ -12,14 +10,14 @@ namespace Eshop.API.Controllers
     [Authorize(Roles = "Administrator")]
     public class CouponsController : ControllerBase
     {
-        private readonly ICouponRepository _couponRepo;
+        private readonly ICouponService _couponService;
 
-        public CouponsController(ICouponRepository couponRepo)
+        // Κάνουμε inject πλέον το Service, ΟΧΙ το Repository!
+        public CouponsController(ICouponService couponService)
         {
-            _couponRepo = couponRepo;
+            _couponService = couponService;
         }
 
-        // 1. POST: api/coupons
         [HttpPost]
         public async Task<IActionResult> CreateCoupon([FromBody] CreateCouponDto dto)
         {
@@ -28,53 +26,79 @@ namespace Eshop.API.Controllers
                 return BadRequest(new { message = "Ο κωδικός του κουπονιού είναι υποχρεωτικός." });
             }
 
-            // Χειροκίνητο, αυστηρό Parsing των ημερομηνιών (Format: YYYY-MM-DD)
-            if (!DateTime.TryParseExact(dto.StartDate, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var parsedStartDate) ||
-                !DateTime.TryParseExact(dto.EndDate, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var parsedEndDate))
+            try
             {
-                return BadRequest(new { message = "Μη έγκυρη μορφή ημερομηνίας. Χρησιμοποιήστε αυστηρά το format YYYY-MM-DD (π.χ. 2026-06-15)." });
+                var coupon = await _couponService.CreateCouponAsync(dto);
+                return Ok(new { message = "Το κουπόνι δημιουργήθηκε με επιτυχία!", coupon });
             }
-
-            if (parsedStartDate >= parsedEndDate)
+            catch (ArgumentException ex) // Πιάνει τα λάθη ημερομηνιών
             {
-                return BadRequest(new { message = "Η ημερομηνία έναρξης πρέπει να είναι προγενέστερη της ημερομηνίας λήξης." });
+                return BadRequest(new { message = ex.Message });
             }
-
-            var existing = await _couponRepo.GetByCodeAsync(dto.Code);
-            if (existing != null)
+            catch (InvalidOperationException ex) // Πιάνει τα διπλότυπα κουπόνια
             {
-                return BadRequest(new { message = $"Υπάρχει ήδη καταχωρημένο κουπόνι με τον κωδικό '{dto.Code}'." });
+                return BadRequest(new { message = ex.Message });
             }
-
-            // Φτιάχνουμε το Entity από το DTO
-            var coupon = new Coupon
-            {
-                Code = dto.Code.ToUpper(),
-                DiscountType = dto.DiscountType,
-                DiscountValue = dto.DiscountValue,
-                MinimumSubTotalRequired = dto.MinimumSubTotalRequired,
-                StartDate = DateTime.SpecifyKind(parsedStartDate, DateTimeKind.Utc),
-                EndDate = DateTime.SpecifyKind(parsedEndDate, DateTimeKind.Utc),
-                IsActive = dto.IsActive
-            };
-
-            await _couponRepo.AddAsync(coupon);
-            await _couponRepo.SaveChangesAsync();
-
-            return Ok(new { message = "Το κουπόνι δημιουργήθηκε με επιτυχία!", coupon });
         }
 
-        // 2. GET: api/coupons/{code} -> Έλεγχος/Εμφάνιση ενός κουπονιού βάσει κωδικού
         [HttpGet("{code}")]
         public async Task<IActionResult> GetCouponByCode(string code)
         {
-            var coupon = await _couponRepo.GetByCodeAsync(code);
+            var coupon = await _couponService.GetCouponByCodeAsync(code);
             if (coupon == null)
             {
                 return NotFound(new { message = $"Το κουπόνι '{code}' δεν βρέθηκε." });
             }
 
             return Ok(coupon);
+        }
+
+        [HttpGet]
+        public async Task<IActionResult> GetAllCoupons()
+        {
+            var coupons = await _couponService.GetAllCouponsAsync();
+            return Ok(coupons);
+        }
+
+        [HttpPut("{id}")]
+        public async Task<IActionResult> UpdateCoupon(int id, [FromBody] CreateCouponDto dto)
+        {
+            if (string.IsNullOrWhiteSpace(dto.Code))
+            {
+                return BadRequest(new { message = "Ο κωδικός του κουπονιού είναι υποχρεωτικός." });
+            }
+
+            try
+            {
+                var coupon = await _couponService.UpdateCouponAsync(id, dto);
+                return Ok(new { message = "Το κουπόνι ενημερώθηκε με επιτυχία!", coupon });
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
+            catch (InvalidOperationException ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
+            catch (KeyNotFoundException ex)
+            {
+                return NotFound(new { message = ex.Message });
+            }
+        }
+
+        [HttpDelete("{id}")]
+        public async Task<IActionResult> DeleteCoupon(int id)
+        {
+            try
+            {
+                await _couponService.DeleteCouponAsync(id);
+                return Ok(new { message = "Το κουπόνι διαγράφηκε με επιτυχία." });
+            }
+            catch (KeyNotFoundException ex)
+            {
+                return NotFound(new { message = ex.Message });
+            }
         }
     }
 }

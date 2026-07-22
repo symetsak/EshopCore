@@ -10,7 +10,18 @@ var builder = WebAssemblyHostBuilder.CreateDefault(args);
 builder.RootComponents.Add<App>("#app");
 builder.RootComponents.Add<HeadOutlet>("head::after");
 
-builder.Services.AddScoped(sp => new HttpClient { BaseAddress = new Uri("http://localhost:5284/") });
+// 1. Καταχώρηση του Unauthorized Interceptor Handler
+builder.Services.AddTransient<UnauthorizedHandler>();
+
+// 2. Ρύθμιση HttpClient με χρήση του Handler και BaseAddress το API σου (http://localhost:5284/)
+builder.Services.AddHttpClient("EshopAPI", client =>
+{
+    client.BaseAddress = new Uri("http://localhost:5284/");
+})
+.AddHttpMessageHandler<UnauthorizedHandler>();
+
+// 3. Ορισμός του προεπιλεγμένου (default) HttpClient που γίνεται @inject σε όλες τις σελίδες
+builder.Services.AddScoped(sp => sp.GetRequiredService<IHttpClientFactory>().CreateClient("EshopAPI"));
 
 builder.Services.AddMudServices();
 builder.Services.AddBlazoredLocalStorage();

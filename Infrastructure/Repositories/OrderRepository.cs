@@ -36,8 +36,8 @@ namespace Eshop.Infrastructure.Repositories
         {
             // Επιστρέφει όλες τις παραγγελίες του συγκεκριμένου Tenant (π.χ. για τον Admin)
             return await _context.Orders
-                .Include(o => o.OrderItems)
-                .ThenInclude(oi => oi.Product)
+                .Include(o => o.Customer)
+                .Include(o => o.OrderItems).ThenInclude(oi => oi.Product!).ThenInclude(p => p.Category)
                 .OrderByDescending(o => o.OrderDate)
                 .ToListAsync();
         }
@@ -56,7 +56,8 @@ namespace Eshop.Infrastructure.Repositories
         {
             return await _context.Orders
                 .Include(o => o.OrderItems)          // Φέρνει τη λίστα των προϊόντων της παραγγελίας
-                .ThenInclude(oi => oi.Product)       // Για κάθε item, φέρνει τις λεπτομέρειες του Product (Name, Price κλπ)
+                    .ThenInclude(oi => oi.Product!)       // Για κάθε item, φέρνει τις λεπτομέρειες του Product (Name, Price κλπ)
+                    .ThenInclude(p => p.Category)       // Για κάθε Product, φέρνει τις λεπτομέρειες της Category
                 .FirstOrDefaultAsync(o => o.Id == id);
         }
 

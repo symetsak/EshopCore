@@ -13,6 +13,8 @@ namespace Eshop.Application.DTOs
                 .ForMember(dest => dest.Token, opt => opt.Ignore())
                 .ForMember(dest => dest.RefreshToken, opt => opt.Ignore());
 
+            CreateMap<User, UserResponseDto>();
+
             // 2. Products
             CreateMap<ProductCreateDto, Product>()
                 .ForMember(dest => dest.Id, opt => opt.Ignore())
@@ -25,6 +27,10 @@ namespace Eshop.Application.DTOs
             CreateMap<Product, ProductResponseDto>()
                 .ForMember(dest => dest.Price, opt => opt.MapFrom(src => src.CurrentPrice))
                 .ForMember(dest => dest.OriginalPrice, opt => opt.MapFrom(src => src.Price))
+                .ForMember(dest => dest.SalePrice, opt => opt.MapFrom(src =>
+                    (src.SalePrice.HasValue && src.SaleEndDate.HasValue && src.SaleEndDate.Value < DateTime.UtcNow)
+                    ? null
+                    : src.SalePrice))
                 .ReverseMap();
 
             // 3. Categories
@@ -43,11 +49,16 @@ namespace Eshop.Application.DTOs
                 .ForMember(dest => dest.RefreshTokenExpiry, opt => opt.Ignore())
                 .ForMember(dest => dest.Orders, opt => opt.Ignore());
 
+            CreateMap<Customer, CustomerProfileDto>();
+
             CreateMap<Customer, CustomerAuthResponseDto>()
                 .ForMember(dest => dest.Token, opt => opt.Ignore());
 
             // 5. Orders
-            CreateMap<Order, OrderResponseDto>();
+            CreateMap<Order, OrderResponseDto>()
+                 .ForMember(dest => dest.CustomerName, opt => opt.MapFrom(src => src.Customer != null ? $"{src.Customer.FirstName} {src.Customer.LastName}" : string.Empty))
+                 .ForMember(dest => dest.CustomerEmail, opt => opt.MapFrom(src => src.Customer != null ? src.Customer.Email : string.Empty))
+                 .ForMember(dest => dest.CustomerPhone, opt => opt.MapFrom(src => src.Customer != null ? src.Customer.Phone : string.Empty));
 
             CreateMap<OrderItem, OrderItemResponseDto>()
                 .ForMember(dest => dest.ProductName, opt => opt.MapFrom(src => src.Product != null ? src.Product.Name : string.Empty));
@@ -66,8 +77,9 @@ namespace Eshop.Application.DTOs
 
             // 9. Order Return Mappings
             CreateMap<OrderReturn, OrderReturnResponseDto>();
+
             CreateMap<OrderReturnItem, OrderReturnItemResponseDto>()
-                .ForMember(dest => dest.ProductName, opt => opt.MapFrom(src => src.Product.Name));
+                .ForMember(dest => dest.ProductName, opt => opt.MapFrom(src => src.Product != null ? src.Product.Name : "Άγνωστο Προϊόν"));
         }
     }
 }

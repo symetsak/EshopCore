@@ -69,6 +69,20 @@
     private InputType _passwordInput = InputType.Password;
     private string _passwordInputIcon = Icons.Material.Filled.VisibilityOff;
 
+    protected override void OnInitialized()
+    {
+        // Default τιμές για το password visibility
+        _passwordShow = false;
+        _passwordInputIcon = Icons.Material.Filled.VisibilityOff;
+        _passwordInput = InputType.Password;
+
+        // Έλεγχος αν ήρθαμε από Redirect λόγω ληγμένου Token
+        if (Expired == "true")
+        {
+            Snackbar.Add("Η συνεδρία σας έληξε. Παρακαλώ συνδεθείτε ξανά.", Severity.Warning);
+        }
+    }
+
     // ΜΕΘΟΔΟΣ ΠΟΥ ΑΛΛΑΖΕΙ ΤΟ ΜΑΤΑΚΙ
     private void TogglePasswordVisibility()
     {
@@ -146,4 +160,8 @@
         public string RefreshToken { get; set; } = string.Empty;
         public bool IsFirstLogin { get; set; }
     }
+
+    [Parameter]
+    [SupplyParameterFromQuery(Name = "expired")]
+    public string? Expired { get; set; }
 }

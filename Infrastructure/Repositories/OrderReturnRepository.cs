@@ -38,6 +38,8 @@ namespace Eshop.Infrastructure.Repositories
         public async Task<IEnumerable<OrderReturn>> GetAllReturnsAsync()
         {
             return await _context.OrderReturns
+                .Include(r => r.Order)
+                .Include(r => r.ReturnItems).ThenInclude(ri => ri.Product)
                 .OrderByDescending(r => r.CreatedAt)
                 .ToListAsync();
         }

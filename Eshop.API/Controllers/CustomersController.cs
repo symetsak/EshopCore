@@ -1,5 +1,6 @@
 ﻿using Eshop.Core.DTOs;
 using Eshop.Core.Interfaces;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Eshop.API.Controllers
@@ -74,6 +75,46 @@ namespace Eshop.API.Controllers
             }
 
             return Ok(new { message = "Αποσύνδεση πελάτη επιτυχής. Το token ακυρώθηκε." });
+        }
+
+        // GET: api/customers/profile
+        [HttpGet("profile")]
+        [Authorize(Roles = "Customer")]
+        public async Task<IActionResult> GetProfile()
+        {
+            var customerIdClaim = User.FindFirst("CustomerId")?.Value;
+            if (string.IsNullOrEmpty(customerIdClaim) || !int.TryParse(customerIdClaim, out int customerId))
+            {
+                return Unauthorized(new { message = "Μη έγκυρο token πελάτη." });
+            }
+
+            var profile = await _customerService.GetProfileAsync(customerId);
+            if (profile == null)
+            {
+                return NotFound(new { message = "Ο πελάτης δεν βρέθηκε." });
+            }
+
+            return Ok(profile);
+        }
+
+        // PUT: api/customers/profile
+        [HttpPut("profile")]
+        [Authorize(Roles = "Customer")]
+        public async Task<IActionResult> UpdateProfile([FromBody] CustomerUpdateProfileDto dto)
+        {
+            var customerIdClaim = User.FindFirst("CustomerId")?.Value;
+            if (string.IsNullOrEmpty(customerIdClaim) || !int.TryParse(customerIdClaim, out int customerId))
+            {
+                return Unauthorized(new { message = "Μη έγκυρο token πελάτη." });
+            }
+
+            var updatedProfile = await _customerService.UpdateProfileAsync(customerId, dto);
+            if (updatedProfile == null)
+            {
+                return NotFound(new { message = "Ο πελάτης δεν βρέθηκε." });
+            }
+
+            return Ok(updatedProfile);
         }
     }
 }
