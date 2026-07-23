@@ -1,7 +1,7 @@
-﻿@using System.Net.Http.Headers
-@using System.Net.Http.Json
-@inject HttpClient Http
-@inject Blazored.LocalStorage.ILocalStorageService LocalStorage
+﻿@using Eshop.AdminPanel.Client.Models
+@using Eshop.AdminPanel.Client.Services
+@inject IUserService UserService
+@inject ISnackbar Snackbar
 
 <MudDialog>
     <TitleContent>
@@ -56,26 +56,16 @@
 
     protected override async Task OnInitializedAsync()
     {
-        var request = new HttpRequestMessage(HttpMethod.Get, $"api/Users/{UserId}/notes");
-        var token = await LocalStorage.GetItemAsync<string>("authToken");
-        var tenantId = await LocalStorage.GetItemAsync<string>("tenantId");
-
-        if (!string.IsNullOrEmpty(token)) request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
-        if (!string.IsNullOrEmpty(tenantId)) request.Headers.Add("X-Tenant-Id", tenantId);
-
-        var response = await Http.SendAsync(request);
-        if (response.IsSuccessStatusCode)
+        try
         {
-            _notes = await response.Content.ReadFromJsonAsync<List<UserNoteDto>>() ?? new();
+            // Η κλήση γίνεται πλέον μέσα από το Service! Όλα τα headers μπαίνουν αυτόματα από τον Handler.
+            _notes = await UserService.GetUserNotesAsync(UserId);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Σφάλμα φόρτωσης παρατηρήσεων: {ex.Message}", Severity.Error);
         }
     }
 
     private void Close() => MudDialog.Close(DialogResult.Ok(true));
-
-    public class UserNoteDto
-    {
-        public string Content { get; set; } = string.Empty;
-        public DateTime CreatedAt { get; set; }
-        public string CreatedBy { get; set; } = string.Empty;
-    }
 }

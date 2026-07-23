@@ -1,11 +1,13 @@
 ﻿@page "/admin/products"
 @attribute [Authorize(Roles = "Administrator, Employee")]
+@using Eshop.AdminPanel.Client.Models
+@using Eshop.AdminPanel.Client.Services
 @inject IDialogService DialogService
-@inject HttpClient Http
+@inject IProductService ProductService
+@inject ICategoryService CategoryService
+@inject ICouponService CouponService
 @inject ISnackbar Snackbar
 @inject IJSRuntime JS
-@inject Blazored.LocalStorage.ILocalStorageService LocalStorage
-@using System.Net.Http.Headers
 
 <MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="mt-8">
     <div class="d-flex justify-space-between align-center mb-6">
@@ -13,7 +15,7 @@
     </div>
 
     <MudTabs Elevation="3" Rounded="true" ApplyEffectsToContainer="true" PanelClass="pa-6" Color="Color.Primary" Style="border-radius: 12px;">
-        
+
         <MudTabPanel Text="Προϊόντα" Icon="@Icons.Material.Filled.ShoppingBag">
 
             <MudTable T="ProductResponseModel" ServerData="ServerReload" Dense="true" Hover="true" Bordered="false" Striped="true" @ref="_table" Elevation="0">
@@ -24,7 +26,7 @@
                         Νέο Προϊόν
                     </MudButton>
 
-                    <MudSpacer /> 
+                    <MudSpacer />
 
                     <MudTextField T="string" ValueChanged="@(s => OnSearch(s))" Placeholder="Αναζήτηση με όνομα..."
                                   Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search" IconSize="Size.Medium" Class="mt-0" Clearable="true" />
@@ -32,7 +34,7 @@
                 <HeaderContent>
                     <MudTh>Εικόνα</MudTh>
                     <MudTh>Όνομα</MudTh>
-                    <MudTh>Κατηγορία</MudTh> 
+                    <MudTh>Κατηγορία</MudTh>
                     <MudTh>Τιμή</MudTh>
                     <MudTh>Τιμή Προσφοράς</MudTh>
                     <MudTh>Απόθεμα</MudTh>
@@ -241,33 +243,16 @@
             var pageNumber = state.Page + 1;
             var pageSize = state.PageSize;
 
-            var url = $"api/Products?PageNumber={pageNumber}&PageSize={pageSize}";
-            if (!string.IsNullOrEmpty(_searchString))
+            // Κλήση μέσω του ProductService - Καθαρίσαμε URL, tokens και headers!
+            var result = await ProductService.GetProductsAsync(pageNumber, pageSize, _searchString);
+
+            if (result != null)
             {
-                url += $"&SearchTerm={Uri.EscapeDataString(_searchString)}";
-            }
-
-            var request = new HttpRequestMessage(HttpMethod.Get, url);
-
-            var tenantId = await LocalStorage.GetItemAsync<string>("tenantId");
-            var token = await LocalStorage.GetItemAsync<string>("authToken");
-
-            if (!string.IsNullOrEmpty(tenantId)) request.Headers.Add("X-Tenant-Id", tenantId);
-            if (!string.IsNullOrEmpty(token)) request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
-
-            var response = await Http.SendAsync(request);
-
-            if (response.IsSuccessStatusCode)
-            {
-                var result = await response.Content.ReadFromJsonAsync<PagedResultModel<ProductResponseModel>>();
-                if (result != null)
+                return new TableData<ProductResponseModel>()
                 {
-                    return new TableData<ProductResponseModel>()
-                    {
-                        TotalItems = result.TotalCount,
-                        Items = result.Items
-                    };
-                }
+                    TotalItems = result.TotalCount,
+                    Items = result.Items
+                };
             }
         }
         catch (Exception ex)
@@ -283,18 +268,8 @@
         _loadingCategories = true;
         try
         {
-            var request = new HttpRequestMessage(HttpMethod.Get, "api/categories");
-            var tenantId = await LocalStorage.GetItemAsync<string>("tenantId");
-            var token = await LocalStorage.GetItemAsync<string>("authToken");
-
-            if (!string.IsNullOrEmpty(tenantId)) request.Headers.Add("X-Tenant-Id", tenantId);
-            if (!string.IsNullOrEmpty(token)) request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
-
-            var response = await Http.SendAsync(request);
-            if (response.IsSuccessStatusCode)
-            {
-                _categories = await response.Content.ReadFromJsonAsync<List<CategoryDto>>() ?? new();
-            }
+            // Κλήση μέσω του CategoryService
+            _categories = await CategoryService.GetCategoriesAsync();
         }
         catch (Exception ex)
         {
@@ -376,14 +351,7 @@
         {
             try
             {
-                var request = new HttpRequestMessage(HttpMethod.Delete, $"api/Products/{product.Id}");
-                var tenantId = await LocalStorage.GetItemAsync<string>("tenantId");
-                var token = await LocalStorage.GetItemAsync<string>("authToken");
-
-                if (!string.IsNullOrEmpty(tenantId)) request.Headers.Add("X-Tenant-Id", tenantId);
-                if (!string.IsNullOrEmpty(token)) request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
-
-                var response = await Http.SendAsync(request);
+                var response = await ProductService.DeleteProductAsync(product.Id);
 
                 if (response.IsSuccessStatusCode)
                 {
@@ -424,14 +392,8 @@
         {
             try
             {
-                var request = new HttpRequestMessage(HttpMethod.Delete, $"api/categories/{category.Id}");
-                var tenantId = await LocalStorage.GetItemAsync<string>("tenantId");
-                var token = await LocalStorage.GetItemAsync<string>("authToken");
+                var response = await CategoryService.DeleteCategoryAsync(category.Id);
 
-                if (!string.IsNullOrEmpty(tenantId)) request.Headers.Add("X-Tenant-Id", tenantId);
-                if (!string.IsNullOrEmpty(token)) request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
-
-                var response = await Http.SendAsync(request);
                 if (response.IsSuccessStatusCode)
                 {
                     Snackbar.Add("Η κατηγορία διαγράφηκε επιτυχώς!", Severity.Success);
@@ -460,18 +422,8 @@
         _loadingCoupons = true;
         try
         {
-            var request = new HttpRequestMessage(HttpMethod.Get, "api/Coupons");
-            var tenantId = await LocalStorage.GetItemAsync<string>("tenantId");
-            var token = await LocalStorage.GetItemAsync<string>("authToken");
-
-            if (!string.IsNullOrEmpty(tenantId)) request.Headers.Add("X-Tenant-Id", tenantId);
-            if (!string.IsNullOrEmpty(token)) request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
-
-            var response = await Http.SendAsync(request);
-            if (response.IsSuccessStatusCode)
-            {
-                _coupons = await response.Content.ReadFromJsonAsync<List<CouponDto>>() ?? new();
-            }
+            // Κλήση μέσω του CouponService
+            _coupons = await CouponService.GetCouponsAsync();
         }
         catch (Exception ex)
         {
@@ -507,14 +459,8 @@
         {
             try
             {
-                var request = new HttpRequestMessage(HttpMethod.Delete, $"api/Coupons/{coupon.Id}");
-                var tenantId = await LocalStorage.GetItemAsync<string>("tenantId");
-                var token = await LocalStorage.GetItemAsync<string>("authToken");
+                var response = await CouponService.DeleteCouponAsync(coupon.Id);
 
-                if (!string.IsNullOrEmpty(tenantId)) request.Headers.Add("X-Tenant-Id", tenantId);
-                if (!string.IsNullOrEmpty(token)) request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
-
-                var response = await Http.SendAsync(request);
                 if (response.IsSuccessStatusCode)
                 {
                     Snackbar.Add("Το κουπόνι διαγράφηκε επιτυχώς!", Severity.Success);
@@ -530,24 +476,5 @@
                 Snackbar.Add($"Σφάλμα: {ex.Message}", Severity.Error);
             }
         }
-    }
-
-    public class CategoryDto
-    {
-        public int Id { get; set; }
-        public string Name { get; set; } = string.Empty;
-        public int DisplayOrder { get; set; }
-    }
-
-    public class CouponDto
-    {
-        public int Id { get; set; }
-        public string Code { get; set; } = string.Empty;
-        public string DiscountType { get; set; } = string.Empty;
-        public decimal DiscountValue { get; set; }
-        public decimal MinimumSubTotalRequired { get; set; }
-        public DateTime StartDate { get; set; }
-        public DateTime EndDate { get; set; }
-        public bool IsActive { get; set; }
     }
 }

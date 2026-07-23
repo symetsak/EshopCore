@@ -1,9 +1,9 @@
 ﻿@page "/admin/dashboard"
 @attribute [Authorize(Roles = "Administrator, Employee")]
 @using Eshop.AdminPanel.Client.Models
-@inject HttpClient Http
+@using Eshop.AdminPanel.Client.Services
+@inject IDashboardService DashboardService
 @inject ISnackbar Snackbar
-@inject Blazored.LocalStorage.ILocalStorageService LocalStorage
 @inject AuthenticationStateProvider AuthStateProvider
 
 <MudContainer MaxWidth="MaxWidth.Large" Class="mt-8">
@@ -195,33 +195,9 @@
             var authState = await AuthStateProvider.GetAuthenticationStateAsync();
             _isAdmin = authState.User.IsInRole("Administrator");
 
-            // 1. Φτιάχνουμε το request με το χέρι
-            var request = new HttpRequestMessage(HttpMethod.Get, "api/Orders/admin/dashboard");
-
-            // 2. Διαβάζουμε το tenantId και το JWT Token από το LocalStorage
-            var tenantId = await LocalStorage.GetItemAsync<string>("tenantId");
-            var token = await LocalStorage.GetItemAsync<string>("authToken");
-
-            // 3. Προσθήκη Tenant Header αν υπάρχει
-            if (!string.IsNullOrEmpty(tenantId))
-            {
-                request.Headers.Add("X-Tenant-Id", tenantId);
-            }
-
-            // 4. Προσθήκη Bearer Token Header για το Authentication
-            if (!string.IsNullOrEmpty(token))
-            {
-                request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
-            }
-
-            // 5. Στέλνουμε το request
-            var response = await Http.SendAsync(request);
-
-            if (response.IsSuccessStatusCode)
-            {
-                _stats = await response.Content.ReadFromJsonAsync<AdminDashboardModel>();
-                StateHasChanged();
-            }
+            // 1. Καλούμε το Service για να φέρει τα στατιστικά.
+            // Όλα τα Headers (Bearer, X-Tenant-Id) μπαίνουν αυτόματα από τον UnauthorizedHandler!
+            _stats = await DashboardService.GetStatsAsync();
         }
         catch (Exception ex)
         {

@@ -39,7 +39,7 @@ namespace Eshop.API.Controllers
         }
 
         [HttpPost]
-        [Authorize(Roles = "Administrator")]
+        [Authorize(Roles = "Administrator, Employee")]
         [TenantAuthorize]
         public async Task<IActionResult> Create([FromBody] ProductCreateDto dto)
         {
@@ -48,7 +48,7 @@ namespace Eshop.API.Controllers
         }
 
         [HttpPut("{id}")]
-        [Authorize(Roles = "Administrator")]
+        [Authorize(Roles = "Administrator, Employee")]
         [TenantAuthorize]
         public async Task<IActionResult> Update(int id, [FromBody] ProductCreateDto dto)
         {
@@ -61,7 +61,7 @@ namespace Eshop.API.Controllers
         }
 
         [HttpDelete("{id}")]
-        [Authorize(Roles = "Administrator")]
+        [Authorize(Roles = "Administrator, Employee")]
         [TenantAuthorize]
         public async Task<IActionResult> Delete(int id)
         {
@@ -74,7 +74,7 @@ namespace Eshop.API.Controllers
         }
 
         [HttpPost("{id}/image")]
-        [Authorize(Roles = "Administrator")]
+        [Authorize(Roles = "Administrator, Employee")]
         [TenantAuthorize]
         public async Task<IActionResult> UploadProductImage(int id, IFormFile file)
         {
@@ -107,7 +107,7 @@ namespace Eshop.API.Controllers
 
         // DELETE: api/products/{id}/image
         [HttpDelete("{id}/image")]
-        [Authorize(Roles = "Administrator")]
+        [Authorize(Roles = "Administrator, Employee")]
         [TenantAuthorize]
         public async Task<IActionResult> DeleteProductImage(int id)
         {
@@ -127,7 +127,7 @@ namespace Eshop.API.Controllers
         }
 
         [HttpPut("{id}/discounts")]
-        [Authorize(Roles = "Administrator")]
+        [Authorize(Roles = "Administrator, Employee")]
         [TenantAuthorize]
         public async Task<IActionResult> ApplyProductDiscount(int id, [FromBody] UpdateProductDiscountDto dto)
         {
@@ -147,7 +147,7 @@ namespace Eshop.API.Controllers
         }
 
         [HttpDelete("{id}/discounts")]
-        [Authorize(Roles = "Administrator")]
+        [Authorize(Roles = "Administrator, Employee")]
         [TenantAuthorize]
         public async Task<IActionResult> RemoveProductDiscount(int id)
         {

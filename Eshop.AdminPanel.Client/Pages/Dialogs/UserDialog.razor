@@ -1,8 +1,7 @@
-﻿@using System.Net.Http.Headers
-@using System.Net.Http.Json
-@inject HttpClient Http
+﻿@using Eshop.AdminPanel.Client.Models
+@using Eshop.AdminPanel.Client.Services
+@inject IUserService UserService
 @inject ISnackbar Snackbar
-@inject Blazored.LocalStorage.ILocalStorageService LocalStorage
 
 <MudDialog>
     <TitleContent>
@@ -19,7 +18,7 @@
                 <MudItem XS="12" SM="6">
                     <MudTextField Label="Username" @bind-Value="_model.Username" Disabled="IsEdit" Required="true" Variant="Variant.Outlined" />
                 </MudItem>
-                
+
                 <MudItem XS="12" SM="6">
                     <MudTextField Label="E-mail" @bind-Value="_model.Email" Required="true" InputType="InputType.Email" Variant="Variant.Outlined" />
                 </MudItem>
@@ -40,7 +39,7 @@
                 {
                     <MudItem XS="12">
                         <MudText Typo="Typo.caption" Color="Color.Info">
-                             <b>Σημείωση:</b> Ο προεπιλεγμένος κωδικός πρόσβασης για τον νέο χρήστη θα είναι: <b>Welcome123!</b>
+                            <b>Σημείωση:</b> Ο προεπιλεγμένος κωδικός πρόσβασης για τον νέο χρήστη θα είναι: <b>Welcome123!</b>
                         </MudText>
                     </MudItem>
                 }
@@ -65,8 +64,9 @@
 
 @code {
     [CascadingParameter] IMudDialogInstance MudDialog { get; set; } = null!;
-    
-    [Parameter] public Users.UserClientDto? UserToEdit { get; set; }
+
+    // Πλέον χρησιμοποιεί το κεντρικό DTO από το AppDtos.cs
+    [Parameter] public UserClientDto? UserToEdit { get; set; }
 
     private UserModel _model = new();
     private bool _isSaving = false;
@@ -99,43 +99,37 @@
         try
         {
             HttpResponseMessage response;
-            var tenantId = await LocalStorage.GetItemAsync<string>("tenantId");
-            var token = await LocalStorage.GetItemAsync<string>("authToken");
 
             if (IsEdit)
             {
-                // PUT: api/Users/update/{id}
-                var request = new HttpRequestMessage(HttpMethod.Put, $"api/Users/update/{UserToEdit!.Id}");
-                request.Content = JsonContent.Create(new {
+                // Το payload για το Update (χωρίς το Username, όπως ήταν στο αρχικό)
+                var payload = new
+                {
                     FirstName = _model.FirstName,
                     LastName = _model.LastName,
                     Email = _model.Email,
                     PhoneNumber = _model.PhoneNumber,
                     Role = "Employee"
-                });
+                };
 
-                if (!string.IsNullOrEmpty(tenantId)) request.Headers.Add("X-Tenant-Id", tenantId);
-                if (!string.IsNullOrEmpty(token)) request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
-
-                response = await Http.SendAsync(request);
+                // PUT μέσω του Service. Tokens και headers μπαίνουν αυτόματα.
+                response = await UserService.UpdateUserAsync(UserToEdit!.Id, payload);
             }
             else
             {
-                // POST: api/Users/create
-                var request = new HttpRequestMessage(HttpMethod.Post, "api/Users/create");
-                request.Content = JsonContent.Create(new {
+                // Το payload για το Create
+                var payload = new
+                {
                     Username = _model.Username,
                     FirstName = _model.FirstName,
                     LastName = _model.LastName,
                     Email = _model.Email,
                     PhoneNumber = _model.PhoneNumber,
                     Role = "Employee"
-                });
+                };
 
-                if (!string.IsNullOrEmpty(tenantId)) request.Headers.Add("X-Tenant-Id", tenantId);
-                if (!string.IsNullOrEmpty(token)) request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
-
-                response = await Http.SendAsync(request);
+                // POST μέσω του Service
+                response = await UserService.CreateUserAsync(payload);
             }
 
             if (response.IsSuccessStatusCode)
@@ -160,13 +154,4 @@
     }
 
     private void Cancel() => MudDialog.Cancel();
-
-    public class UserModel
-    {
-        public string Username { get; set; } = string.Empty;
-        public string FirstName { get; set; } = string.Empty;
-        public string LastName { get; set; } = string.Empty;
-        public string Email { get; set; } = string.Empty;
-        public string PhoneNumber { get; set; } = string.Empty;
-    }
 }
