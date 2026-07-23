@@ -1,7 +1,12 @@
 ﻿@inherits LayoutComponentBase
+@using Eshop.AdminPanel.Client.Models
+@using Eshop.AdminPanel.Client.Services
+@using Eshop.AdminPanel.Client.Security
+@using Microsoft.AspNetCore.SignalR.Client
 @inject AuthenticationStateProvider AuthStateProvider
 @inject NavigationManager NavManager
-@inject HttpClient Http
+@inject IAuthService AuthService
+@inject INotificationService NotificationService
 @inject Blazored.LocalStorage.ILocalStorageService LocalStorage
 @inject ISnackbar Snackbar
 @implements IAsyncDisposable
@@ -116,7 +121,7 @@
 
 @code {
     bool _drawerOpen = true;
-    bool _isMenuOpen = false; // Νέα μεταβλητή για να ελέγχουμε το dropdown του καμπανακιού
+    bool _isMenuOpen = false;
 
     private string? _tenantName;
     private string? _username;
@@ -134,7 +139,6 @@
         _drawerOpen = !_drawerOpen;
     }
 
-    // Νέα μέθοδος για να ανοίγει το καμπανάκι και να φορτώνει τα δεδομένα
     private async Task ToggleNotificationsMenu()
     {
         if (!_isMenuOpen)
@@ -144,50 +148,37 @@
         _isMenuOpen = !_isMenuOpen;
     }
 
-    // Το OnInitializedAsync πλέον κάνει μόνο τον έλεγχο του Role με ασφάλεια στη μνήμη
     protected override async Task OnInitializedAsync()
     {
         try
         {
-            // 1. Παίρνουμε με ασφάλεια το Authentication State
             var authState = await AuthStateProvider.GetAuthenticationStateAsync();
             if (authState?.User?.Identity != null && authState.User.Identity.IsAuthenticated)
             {
                 var user = authState.User;
-
-                // Ελέγχουμε αν είναι Staff (Admin ή Employee)
                 _isStaff = user.IsInRole("Administrator") || user.IsInRole("Employee");
             }
         }
         catch (Exception ex)
         {
-            // Αν συμβεί οποιοδήποτε σφάλμα στο initialization, το καταγράφουμε στην κονσόλα
-            // χωρίς να αφήσουμε την εφαρμογή να κρασάρει!
             Console.WriteLine($"Error during MainLayout initialization: {ex.Message}");
         }
     }
 
-    // Χρησιμοποιούμε την OnAfterRenderAsync για να καλέσουμε το LocalStorage και το API
-    // ΜΟΝΟ όταν το UI έχει φορτώσει 100% και είναι ασφαλές να τρέξουμε JS Interop!
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         if (firstRender)
         {
             try
             {
-                // Φορτώνουμε το όνομα του Tenant και το Username για το Header
                 await LoadHeaderDataAsync();
 
                 if (_isStaff)
                 {
-                    // Φορτώνουμε τις ειδοποιήσεις
                     await LoadNotificationsAsync();
-
-                    // Ξεκινάμε τη Live Σύνδεση με το Backend!
                     await StartSignalRConnectionAsync();
                 }
 
-                // Ενημερώνουμε το UI για να σχεδιάσει τα νέα δεδομένα
                 StateHasChanged();
             }
             catch (Exception ex)
@@ -197,7 +188,6 @@
         }
     }
 
-    // Η ΝΕΑ ΜΕΘΟΔΟΣ ΓΙΑ ΤΟ SIGNALR
     private async Task StartSignalRConnectionAsync()
     {
         try
@@ -205,31 +195,23 @@
             var token = await LocalStorage.GetItemAsync<string>("authToken");
             if (string.IsNullOrEmpty(token)) return;
 
-            // Βάλε εδώ το σωστό URL του Hub σου (π.χ. /api/notificationhub)
-            var baseUri = Http.BaseAddress?.ToString() ?? NavManager.BaseUri;
+            // Παίρνουμε το base URL από το NavManager, αφού αφαιρέσαμε το HttpClient
+            var baseUri = NavManager.BaseUri;
             var hubUrl = new Uri(new Uri(baseUri), "api/notificationhub");
 
             _hubConnection = new HubConnectionBuilder()
                 .WithUrl(hubUrl, options =>
                 {
-                    // Περνάμε το JWT Token για να μας αναγνωρίσει το Backend Hub!
                     options.AccessTokenProvider = () => Task.FromResult(token)!;
                 })
-                .WithAutomaticReconnect() // Αν πέσει το ίντερνετ, ξανασυνδέεται μόνο του
+                .WithAutomaticReconnect()
                 .Build();
 
-            // Τι κάνουμε όταν ακούσουμε το event "ReceiveNotification"
             _hubConnection.On<object>("ReceiveNotification", async (payload) =>
             {
                 Console.WriteLine("[SignalR] ΝΕΑ ΕΙΔΟΠΟΙΗΣΗ ΕΛΗΦΘΗ!");
-
-                // Παίζουμε ήχο (προαιρετικά) ή πετάμε ένα Snackbar πάνω δεξιά
                 Snackbar.Add("Νέα ειδοποίηση συστήματος!", Severity.Info);
-
-                // Ανανεώνουμε τη λίστα για να πάρουμε το κανονικό DTO από το Database
                 await LoadNotificationsAsync();
-
-                // Λέμε στο Blazor να ανανεώσει το UI (να ανάψει το καμπανάκι)
                 await InvokeAsync(StateHasChanged);
             });
 
@@ -246,21 +228,16 @@
     {
         try
         {
-            // 1. Παίρνουμε το Authentication State
             var authState = await AuthStateProvider.GetAuthenticationStateAsync();
             var user = authState.User;
 
             if (user.Identity != null && user.Identity.IsAuthenticated)
             {
-                // 2. Διαβάζουμε δυναμικά το Username
                 _username = user.Identity.Name;
-
-                // 3. Διαβάζουμε το TenantId από το LocalStorage ή από τα Claims
                 _tenantName = await LocalStorage.GetItemAsync<string>("tenantId");
 
                 if (string.IsNullOrEmpty(_tenantName))
                 {
-                    // Αν για κάποιο λόγο λείπει από το LocalStorage, το τραβάμε από το "TenantId" claim του JWT!
                     _tenantName = user.FindFirst("TenantId")?.Value;
                 }
             }
@@ -276,32 +253,10 @@
         try
         {
             var refreshToken = await LocalStorage.GetItemAsync<string>("refreshToken");
-            var tenantId = await LocalStorage.GetItemAsync<string>("tenantId");
 
-            if (string.IsNullOrEmpty(tenantId))
+            if (!string.IsNullOrEmpty(refreshToken))
             {
-                var authState = await AuthStateProvider.GetAuthenticationStateAsync();
-                var user = authState.User;
-                var emailClaim = user.FindFirst(System.Security.Claims.ClaimTypes.Email)?.Value;
-                if (!string.IsNullOrEmpty(emailClaim) && emailClaim.Contains("@"))
-                {
-                    tenantId = emailClaim.Split('@')[1].Split('.')[0];
-                }
-            }
-
-            Console.WriteLine($"[LOGOUT DEBUG] Token: {refreshToken} | Δυναμικό Tenant: {tenantId}");
-
-            if (!string.IsNullOrEmpty(refreshToken) && !string.IsNullOrEmpty(tenantId))
-            {
-                var jsonPayload = $"{{\n  \"RefreshToken\": \"{refreshToken}\"\n}}";
-                var content = new StringContent(jsonPayload, System.Text.Encoding.UTF8, "application/json");
-
-                var request = new HttpRequestMessage(HttpMethod.Post, "api/Users/logout");
-                request.Content = content;
-                request.Headers.Add("X-Tenant-Id", tenantId);
-
-                var response = await Http.SendAsync(request);
-                Console.WriteLine($"[LOGOUT DEBUG] API Response Status: {response.StatusCode}");
+                await AuthService.LogoutAsync(refreshToken);
             }
         }
         catch (Exception ex)
@@ -321,32 +276,12 @@
 
     private async Task LoadNotificationsAsync()
     {
-        // Ελέγχουμε αν υπάρχει token πριν κάνουμε την κλήση
-        var token = await LocalStorage.GetItemAsync<string>("authToken");
-        if (string.IsNullOrEmpty(token)) return;
-
         _loadingNotifications = true;
         try
         {
-            var request = new HttpRequestMessage(HttpMethod.Get, "api/notifications/adminNotifications");
-            var tenantId = await LocalStorage.GetItemAsync<string>("tenantId");
-
-            request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
-            if (!string.IsNullOrEmpty(tenantId))
-            {
-                request.Headers.Add("X-Tenant-Id", tenantId);
-            }
-
-            var response = await Http.SendAsync(request);
-            if (response.IsSuccessStatusCode)
-            {
-                _notifications = await response.Content.ReadFromJsonAsync<List<NotificationClientDto>>() ?? new();
-                _unreadCount = _notifications.Count(n => !n.IsRead);
-            }
-            else
-            {
-                Console.WriteLine($"Notifications API returned status: {response.StatusCode}");
-            }
+            // Κλήση μέσω του NotificationService. Δεν ασχολούμαστε με Tokens και Headers εδώ!
+            _notifications = await NotificationService.GetNotificationsAsync();
+            _unreadCount = _notifications.Count(n => !n.IsRead);
         }
         catch (Exception ex)
         {
@@ -363,17 +298,11 @@
     {
         try
         {
-            var request = new HttpRequestMessage(HttpMethod.Put, $"api/notifications/admin/{id}/read");
-            var token = await LocalStorage.GetItemAsync<string>("authToken");
-            var tenantId = await LocalStorage.GetItemAsync<string>("tenantId");
+            // Κλήση μέσω του NotificationService.
+            var response = await NotificationService.MarkAsReadAsync(id);
 
-            if (!string.IsNullOrEmpty(token)) request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
-            if (!string.IsNullOrEmpty(tenantId)) request.Headers.Add("X-Tenant-Id", tenantId);
-
-            var response = await Http.SendAsync(request);
             if (response.IsSuccessStatusCode)
             {
-                // Ενημερώνουμε τη λίστα τοπικά χωρίς να ξανακάνουμε κλήση στη βάση!
                 var notif = _notifications.FirstOrDefault(n => n.Id == id);
                 if (notif != null)
                 {
@@ -389,34 +318,11 @@
         }
     }
 
-    // ΠΡΟΣΘΗΚΗ: Κλείνουμε τη σύνδεση όταν ο χρήστης φεύγει (Memory Leak Prevention!)
     public async ValueTask DisposeAsync()
     {
         if (_hubConnection is not null)
         {
             await _hubConnection.DisposeAsync();
         }
-    }
-
-    // Το ΑΝΑΝΕΩΜΕΝΟ DTO για τον Client
-    public class NotificationClientDto
-    {
-        [System.Text.Json.Serialization.JsonPropertyName("id")]
-        public int Id { get; set; }
-
-        [System.Text.Json.Serialization.JsonPropertyName("title")]
-        public string Title { get; set; } = string.Empty;
-
-        [System.Text.Json.Serialization.JsonPropertyName("message")]
-        public string Message { get; set; } = string.Empty;
-
-        [System.Text.Json.Serialization.JsonPropertyName("type")]
-        public string Type { get; set; } = string.Empty;
-
-        [System.Text.Json.Serialization.JsonPropertyName("isRead")]
-        public bool IsRead { get; set; }
-
-        [System.Text.Json.Serialization.JsonPropertyName("createdAt")]
-        public DateTime CreatedAt { get; set; }
     }
 }

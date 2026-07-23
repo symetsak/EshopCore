@@ -7,7 +7,7 @@ namespace Eshop.API.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
-    [Authorize(Roles = "Administrator")]
+    [Authorize(Roles = "Administrator, Employee")]
     public class CouponsController : ControllerBase
     {
         private readonly ICouponService _couponService;

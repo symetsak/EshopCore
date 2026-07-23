@@ -1,5 +1,8 @@
 ﻿@page "/admin/returns"
-@inject HttpClient Http
+@using Eshop.AdminPanel.Client.Models
+@using Eshop.AdminPanel.Client.Services
+@using System.Net.Http.Json
+@inject IReturnService ReturnService
 @inject ISnackbar Snackbar
 
 <PageTitle>Διαχείριση Επιστροφών</PageTitle>
@@ -62,7 +65,7 @@
                     @if (availableStatuses.Any())
                     {
                         <MudSelect T="string" Value="@context.Status" ValueChanged="@((s) => UpdateStatusAsync(context.Id, s))"
-                                   Dense="true" Outlined="true" Margin="Margin.Dense" DisableUnderLine="true">
+                                   Dense="true" Outlined="true" Margin="Margin.Dense" DisableUnderline="true">
                             <MudSelectItem Value="@context.Status">@context.Status</MudSelectItem>
                             @foreach (var status in availableStatuses)
                             {
@@ -153,9 +156,11 @@
         _loading = true;
         try
         {
-            var data = await Http.GetFromJsonAsync<List<OrderReturnResponseDto>>("api/admin/returns");
+            // Κλήση στο Service αντί για HttpClient
+            var data = await ReturnService.GetReturnsAsync();
             if (data != null)
             {
+                // Mapping από Dto σε UIModel για να ελέγχουμε το accordion ShowDetails
                 _returns = data.Select(r => new OrderReturnUIModel
                 {
                     Id = r.Id,
@@ -169,7 +174,8 @@
                     CreatedAt = r.CreatedAt,
                     UpdatedAt = r.UpdatedAt,
                     ReturnItems = r.ReturnItems ?? new(),
-                    Iban = r.Iban
+                    Iban = r.Iban,
+                    ShowDetails = false
                 }).ToList();
             }
         }
@@ -192,8 +198,8 @@
     {
         try
         {
-            var dto = new OrderReturnStatusUpdateDto { Status = newStatus };
-            var response = await Http.PutAsJsonAsync($"api/admin/returns/{returnId}/status", dto);
+            // Κλήση στο Service
+            var response = await ReturnService.UpdateReturnStatusAsync(returnId, newStatus);
 
             if (response.IsSuccessStatusCode)
             {
@@ -237,41 +243,5 @@
             "refunded" or "rejected" => new List<string>(),
             _ => new List<string>()
         };
-    }
-
-    // --- ΔΗΛΩΣΗ ΤΩΝ DTOS ΤΟΠΙΚΑ ΓΙΑ ΤΟ FRONTEND ---
-    public class OrderReturnResponseDto
-    {
-        public int Id { get; set; }
-        public int OrderId { get; set; }
-        public int CustomerId { get; set; }
-        public string Title { get; set; } = string.Empty;
-        public string Reason { get; set; } = string.Empty;
-        public string ReturnType { get; set; } = string.Empty;
-        public string Status { get; set; } = string.Empty;
-        public decimal RefundAmount { get; set; }
-        public DateTime CreatedAt { get; set; }
-        public DateTime? UpdatedAt { get; set; }
-        public List<OrderReturnItemResponseDto> ReturnItems { get; set; } = new();
-        public string? Iban { get; set; }
-    }
-
-    public class OrderReturnItemResponseDto
-    {
-        public int Id { get; set; }
-        public int ProductId { get; set; }
-        public string ProductName { get; set; } = string.Empty;
-        public int Quantity { get; set; }
-        public decimal UnitPrice { get; set; }
-    }
-
-    public class OrderReturnStatusUpdateDto
-    {
-        public string Status { get; set; } = string.Empty;
-    }
-
-    public class OrderReturnUIModel : OrderReturnResponseDto
-    {
-        public bool ShowDetails { get; set; }
     }
 }

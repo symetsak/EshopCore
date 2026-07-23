@@ -1,9 +1,9 @@
 ﻿@page "/admin/orders"
 @attribute [Authorize(Roles = "Administrator, Employee")]
-@using System.Net.Http.Headers
+@using Eshop.AdminPanel.Client.Models
+@using Eshop.AdminPanel.Client.Services
 @using System.Net.Http.Json
-@inject HttpClient Http
-@inject Blazored.LocalStorage.ILocalStorageService LocalStorage
+@inject IOrderService OrderService
 @inject ISnackbar Snackbar
 
 <MudContainer MaxWidth="MaxWidth.False" Class="mt-4">
@@ -176,7 +176,7 @@
 </MudContainer>
 
 @code {
-    private List<OrderResponseDto> _orders = new();
+    private List<OrderUIModel> _orders = new();
     private bool _loading = true;
 
     protected override async Task OnInitializedAsync()
@@ -189,26 +189,28 @@
         _loading = true;
         try
         {
-            var token = await LocalStorage.GetItemAsync<string>("authToken");
-            var tenantId = await LocalStorage.GetItemAsync<string>("tenantId");
+            // Κλήση στο Service αντί για HttpClient
+            var data = await OrderService.GetOrdersAsync();
 
-            var request = new HttpRequestMessage(HttpMethod.Get, "api/orders/admin/all");
-
-            if (!string.IsNullOrEmpty(token))
-                request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
-
-            if (!string.IsNullOrEmpty(tenantId))
-                request.Headers.Add("X-Tenant-Id", tenantId);
-
-            var response = await Http.SendAsync(request);
-            if (response.IsSuccessStatusCode)
+            // Map από το DTO στο UI Model για να υποστηρίζει το ShowDetails
+            _orders = data.Select(o => new OrderUIModel
             {
-                _orders = await response.Content.ReadFromJsonAsync<List<OrderResponseDto>>() ?? new();
-            }
-            else
-            {
-                Snackbar.Add($"Σφάλμα φόρτωσης: {response.StatusCode}", Severity.Error);
-            }
+                Id = o.Id,
+                OrderDate = o.OrderDate,
+                TotalAmount = o.TotalAmount,
+                Status = o.Status,
+                CustomerId = o.CustomerId,
+                CustomerName = o.CustomerName,
+                PaymentMethod = o.PaymentMethod,
+                OrderItems = o.OrderItems,
+                Street = o.Street,
+                StreetNumber = o.StreetNumber,
+                City = o.City,
+                ZipCode = o.ZipCode,
+                CustomerEmail = o.CustomerEmail,
+                CustomerPhone = o.CustomerPhone,
+                ShowDetails = false // Default κλειστό
+            }).ToList();
         }
         catch (Exception ex)
         {
@@ -228,21 +230,9 @@
 
         try
         {
-            var token = await LocalStorage.GetItemAsync<string>("authToken");
-            var tenantId = await LocalStorage.GetItemAsync<string>("tenantId");
+            // Κλήση στο Service
+            var response = await OrderService.UpdateOrderStatusAsync(orderId, newStatus);
 
-            var request = new HttpRequestMessage(HttpMethod.Put, $"api/orders/admin/{orderId}/status");
-
-            if (!string.IsNullOrEmpty(token))
-                request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
-
-            if (!string.IsNullOrEmpty(tenantId))
-                request.Headers.Add("X-Tenant-Id", tenantId);
-
-            var payload = new { Status = newStatus };
-            request.Content = JsonContent.Create(payload);
-
-            var response = await Http.SendAsync(request);
             if (response.IsSuccessStatusCode)
             {
                 Snackbar.Add($"Η παραγγελία #{orderId} άλλαξε σε {newStatus}!", Severity.Success);
@@ -296,35 +286,9 @@
         _ => Color.Default
     };
 
-    public class OrderResponseDto
+    // Μπορείς να μεταφέρεις αυτή την κλάση στο AppModels.cs!
+    public class OrderUIModel : OrderResponseDto
     {
-        public int Id { get; set; }
-        public DateTime OrderDate { get; set; }
-        public decimal TotalAmount { get; set; }
-        public string Status { get; set; } = string.Empty;
-        public int CustomerId { get; set; }
-        public string CustomerName { get; set; } = string.Empty; 
-        public string PaymentMethod { get; set; } = string.Empty;
-        public List<OrderItemResponseDto> OrderItems { get; set; } = new();
         public bool ShowDetails { get; set; }
-        public string Street { get; set; } = string.Empty;
-        public string StreetNumber { get; set; } = string.Empty;
-        public string City { get; set; } = string.Empty;
-        public string ZipCode { get; set; } = string.Empty;
-        public string CustomerEmail { get; set; } = string.Empty;
-        public string CustomerPhone { get; set; } = string.Empty;
-    }
-
-    public class OrderItemResponseDto
-    {
-        public int ProductId { get; set; }
-        public string ProductName { get; set; } = string.Empty;
-        public int Quantity { get; set; }
-        public decimal UnitPrice { get; set; }
-    }
-
-    public class ErrorResponse
-    {
-        public string Message { get; set; } = string.Empty;
     }
 }
