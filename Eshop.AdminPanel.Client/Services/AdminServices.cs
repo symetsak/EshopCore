@@ -24,13 +24,19 @@ namespace Eshop.AdminPanel.Client.Services
 
         public async Task<HttpResponseMessage> ChangePasswordAsync(ChangePasswordModel model)
         {
-            // Ο Handler θα βάλει αυτόματα το Tenant ID και το Bearer Token!
-            return await _http.PostAsJsonAsync("api/users/change-password", new
+            var request = new HttpRequestMessage(HttpMethod.Post, "api/users/change-password");
+
+            request.Content = JsonContent.Create(new
             {
                 username = model.Username,
                 currentPassword = model.CurrentPassword,
                 newPassword = model.NewPassword
             });
+
+            // Το προσθέτουμε ξανά χειροκίνητα παίρνοντάς το από τη φόρμα!
+            request.Headers.Add("X-Tenant-Id", model.TenantId.ToLower().Trim());
+
+            return await _http.SendAsync(request);
         }
     }
 
