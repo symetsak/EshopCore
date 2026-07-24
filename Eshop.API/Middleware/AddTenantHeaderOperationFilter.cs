@@ -1,4 +1,5 @@
-﻿using Microsoft.OpenApi.Models;
+﻿using Eshop.API.Attributes;
+using Microsoft.OpenApi.Models;
 using Swashbuckle.AspNetCore.SwaggerGen;
 
 namespace Eshop.API.Middleware
@@ -7,6 +8,16 @@ namespace Eshop.API.Middleware
     {
         public void Apply(OpenApiOperation operation, OperationFilterContext context)
         {
+            // Ελέγχουμε αν υπάρχει το [IgnoreTenant] στον Controller ή στο συγκεκριμένο Endpoint
+            var hasIgnoreAttribute = context.MethodInfo.DeclaringType?.GetCustomAttributes(true).OfType<IgnoreTenantAttribute>().Any() == true ||
+                                     context.MethodInfo.GetCustomAttributes(true).OfType<IgnoreTenantAttribute>().Any();
+
+            if (hasIgnoreAttribute)
+            {
+                // Αν έχει το attribute, ΔΕΝ προσθέτουμε το πεδίο στο Swagger!
+                return;
+            }
+
             if (operation.Parameters == null)
                 operation.Parameters = new List<OpenApiParameter>();
 

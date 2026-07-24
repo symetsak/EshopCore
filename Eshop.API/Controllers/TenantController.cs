@@ -1,4 +1,5 @@
-﻿using Eshop.Application.Services;
+﻿using Eshop.API.Attributes;
+using Eshop.Application.Services;
 using Eshop.Core.DTOs;
 using Eshop.Core.Entities;
 using Eshop.Core.Interfaces;
@@ -8,6 +9,7 @@ namespace Eshop.API.Controllers
 {
     [Route("api/[controller]")]
     [ApiController]
+    [IgnoreTenant]
     public class TenantsController : ControllerBase
     {
         private readonly TenantApplicationService _tenantAppService;

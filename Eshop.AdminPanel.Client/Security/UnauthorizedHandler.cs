@@ -21,7 +21,7 @@ namespace Eshop.AdminPanel.Client.Security
         {
             // ΑΝ ΕΙΝΑΙ ΑΙΤΗΜΑ LOGIN / AUTH, ΑΦΗΣΕ ΤΟ ΝΑ ΠΕΡΑΣΕΙ ΕΛΕΥΘΕΡΑ!
             var requestPath = request.RequestUri?.AbsolutePath.ToLower();
-            bool isAuthRequest = requestPath != null && (requestPath.Contains("/login") || requestPath.Contains("/refresh"));
+            bool isAuthRequest = requestPath != null && (requestPath.Contains("/login") || requestPath.Contains("/refresh") || requestPath.Contains("/change-password"));
 
             if (isAuthRequest)
             {
