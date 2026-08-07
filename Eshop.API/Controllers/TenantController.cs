@@ -2,7 +2,7 @@
 using Eshop.Application.Services;
 using Eshop.Core.DTOs;
 using Eshop.Core.Entities;
-using Eshop.Core.Interfaces;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Eshop.API.Controllers
@@ -10,19 +10,17 @@ namespace Eshop.API.Controllers
     [Route("api/[controller]")]
     [ApiController]
     [IgnoreTenant]
+    [Authorize]
     public class TenantsController : ControllerBase
     {
         private readonly TenantApplicationService _tenantAppService;
-        private readonly ITenantRepository _tenantRepository;
 
-        // Κάνουμε inject το Application Service
-        public TenantsController(TenantApplicationService tenantAppService, ITenantRepository tenantRepository)
+        // Clean Architecture: Μόνο το Application Service γίνεται inject εδώ!
+        public TenantsController(TenantApplicationService tenantAppService)
         {
             _tenantAppService = tenantAppService;
-            _tenantRepository = tenantRepository;
         }
 
-        // GET: api/tenants
         [HttpGet]
         public async Task<IActionResult> GetAll()
         {
@@ -30,7 +28,6 @@ namespace Eshop.API.Controllers
             return Ok(tenants);
         }
 
-        // GET: api/tenants/{id}
         [HttpGet("{id}")]
         public async Task<IActionResult> GetById(string id)
         {
@@ -40,7 +37,6 @@ namespace Eshop.API.Controllers
             return Ok(tenant);
         }
 
-        // POST: api/tenants
         [HttpPost]
         public async Task<IActionResult> Create([FromBody] Tenant tenant)
         {
@@ -49,39 +45,40 @@ namespace Eshop.API.Controllers
                 var resultMessage = await _tenantAppService.CreateTenantAsync(tenant);
                 return Ok(new { message = resultMessage });
             }
-            catch (ArgumentException ex)
+            catch (ArgumentException ex) { return BadRequest(ex.Message); }
+            catch (InvalidOperationException ex) { return Conflict(ex.Message); }
+            catch (Exception) { return StatusCode(500, "Παρουσιάστηκε ένα εσωτερικό σφάλμα στον server."); }
+        }
+
+        // 1. Ενημέρωση Στοιχείων
+        [HttpPut("{id}")]
+        public async Task<IActionResult> UpdateTenantDetails(string id, [FromBody] UpdateTenantDetailsDto dto)
+        {
+            try
             {
-                return BadRequest(ex.Message);
+                await _tenantAppService.UpdateTenantDetailsAsync(id, dto);
+                return Ok(new { message = "Τα στοιχεία ενημερώθηκαν επιτυχώς." });
             }
-            catch (InvalidOperationException ex)
+            catch (KeyNotFoundException ex)
             {
-                return Conflict(ex.Message);
-            }
-            catch (Exception)
-            {
-                return StatusCode(500, "Παρουσιάστηκε ένα εσωτερικό σφάλμα στον server.");
+                return NotFound(new { message = ex.Message });
             }
         }
 
-        [HttpPut("{id}")]
-        public async Task<IActionResult> UpdateTenant(string id, [FromBody] TenantUpdateDto dto)
+        // 2. Toggle Status (Αναστολή/Ενεργοποίηση)
+        [HttpPatch("{id}/toggle-status")]
+        public async Task<IActionResult> ToggleTenantStatus(string id)
         {
-            // 1. Ψάχνουμε τον Tenant στη Master Βάση
-            var tenant = await _tenantRepository.GetByIdAsync(id);
-
-            if (tenant == null)
+            try
             {
-                return NotFound(new { message = $"Ο Tenant με ID '{id}' δεν βρέθηκε." });
+                var newStatus = await _tenantAppService.ToggleTenantStatusAsync(id);
+                var statusMsg = newStatus ? "ενεργοποιήθηκε" : "απενεργοποιήθηκε (Suspend)";
+                return Ok(new { message = $"Ο πελάτης {statusMsg} επιτυχώς.", isActive = newStatus });
             }
-
-            // 2. Ενημερώνουμε τα πεδία
-            tenant.Name = dto.Name;
-            tenant.IsActive = dto.IsActive;
-
-            // 3. Σώζουμε τις αλλαγές direct μέσω του Repo
-            await _tenantRepository.SaveChangesAsync();
-
-            return Ok(new { message = $"Ο Tenant '{id}' ενημερώθηκε επιτυχώς.", tenant });
+            catch (KeyNotFoundException ex)
+            {
+                return NotFound(new { message = ex.Message });
+            }
         }
     }
 }

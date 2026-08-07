@@ -1,4 +1,5 @@
-﻿using Eshop.Core.Entities;
+﻿using Eshop.Core.DTOs;
+using Eshop.Core.Entities;
 using Eshop.Core.Interfaces;
 
 namespace Eshop.Application.Services
@@ -51,6 +52,33 @@ namespace Eshop.Application.Services
             await _tenantRepository.AddAsync(tenant);
 
             return $"Ο πελάτης '{tenant.Name}' και η προσωπική του βάση δεδομένων δημιουργήθηκαν με επιτυχία!";
+        }
+
+        public async Task UpdateTenantDetailsAsync(string id, UpdateTenantDetailsDto dto)
+        {
+            var tenant = await _tenantRepository.GetByIdAsync(id);
+            if (tenant == null)
+                throw new KeyNotFoundException($"Ο πελάτης με ID '{id}' δεν βρέθηκε.");
+
+            tenant.Name = dto.Name;
+            tenant.Address = dto.Address;
+            tenant.City = dto.City;
+            tenant.Email = dto.Email;
+            tenant.Mobile = dto.Mobile;
+
+            await _tenantRepository.SaveChangesAsync();
+        }
+
+        public async Task<bool> ToggleTenantStatusAsync(string id)
+        {
+            var tenant = await _tenantRepository.GetByIdAsync(id);
+            if (tenant == null)
+                throw new KeyNotFoundException($"Ο πελάτης με ID '{id}' δεν βρέθηκε.");
+
+            tenant.IsActive = !tenant.IsActive;
+            await _tenantRepository.SaveChangesAsync();
+
+            return tenant.IsActive;
         }
     }
 }

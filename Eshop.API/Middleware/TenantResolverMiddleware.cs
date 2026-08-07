@@ -35,7 +35,9 @@ namespace Eshop.API.Middleware
                 path.Contains("favicon") ||
                 path.Contains("uploads") ||
                 path.Contains("negotiate") ||
-                path.Contains("/api/tenants"))
+                path.Contains("/api/tenants") ||
+                path.Contains("/api/system")
+                )
             {
                 await _next(context);
                 return;

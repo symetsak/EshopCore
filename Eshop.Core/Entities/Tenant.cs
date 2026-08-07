@@ -1,10 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-
-namespace Eshop.Core.Entities
+﻿namespace Eshop.Core.Entities
 {
     public class Tenant
     {
@@ -12,5 +6,9 @@ namespace Eshop.Core.Entities
         public string Name { get; set; } = string.Empty; // π.χ. "Nick's Shoe Store"
         public string ConnectionString { get; set; } = string.Empty; // Η βάση του
         public bool IsActive { get; set; } = true;
+        public string? Address { get; set; }
+        public string? City { get; set; }
+        public string? Email { get; set; }
+        public string? Mobile { get; set; }
     }
 }
