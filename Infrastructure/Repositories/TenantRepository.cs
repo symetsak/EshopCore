@@ -37,5 +37,28 @@ namespace Eshop.Infrastructure.Repositories
         }
 
         public async Task SaveChangesAsync() => await _context.SaveChangesAsync();
+
+        public async Task<IEnumerable<TenantTransaction>> GetTransactionsByTenantIdAsync(string tenantId)
+        {
+            return await _context.TenantTransactions
+                .Where(t => t.TenantId == tenantId)
+                .OrderByDescending(t => t.CreatedAt) 
+                .ToListAsync();
+        }
+
+        public async Task AddTransactionAsync(TenantTransaction transaction)
+        {
+            await _context.TenantTransactions.AddAsync(transaction);
+        }
+
+        public async Task<TenantTransaction?> GetTransactionByIdAsync(int id)
+        {
+            return await _context.TenantTransactions.FirstOrDefaultAsync(t => t.Id == id);
+        }
+
+        public async Task DeleteTransactionAsync(TenantTransaction transaction)
+        {
+            _context.TenantTransactions.Remove(transaction);
+        }
     }
 }

@@ -15,6 +15,7 @@ var builder = WebApplication.CreateBuilder(args);
 var masterConnectionString = builder.Configuration.GetConnectionString("MasterConnection");
 builder.Services.AddDbContext<MasterDbContext>(options => options.UseNpgsql(masterConnectionString));
 builder.Services.AddDbContext<ApplicationDbContext>();
+builder.Services.AddScoped<IMasterDbContext>(provider => provider.GetRequiredService<MasterDbContext>());
 
 // 2. Clean Architecture Extensions (Dependency Injection & Security)
 builder.Services.AddEshopServices(); // όλα τα AddScoped!

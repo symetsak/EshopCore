@@ -9,5 +9,9 @@ namespace Eshop.Core.Interfaces
         Task AddAsync(Tenant tenant);
         Task<bool> ExistsAsync(string id);
         Task SaveChangesAsync();
+        Task<IEnumerable<TenantTransaction>> GetTransactionsByTenantIdAsync(string tenantId);
+        Task AddTransactionAsync(TenantTransaction transaction);
+        Task<TenantTransaction?> GetTransactionByIdAsync(int id);
+        Task DeleteTransactionAsync(TenantTransaction transaction);
     }
 }

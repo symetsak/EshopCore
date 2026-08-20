@@ -1,0 +1,27 @@
+﻿<CascadingAuthenticationState>
+    <Router AppAssembly="@typeof(App).Assembly">
+        <Found Context="routeData">
+            <AuthorizeRouteView RouteData="@routeData" DefaultLayout="@typeof(Layout.MainLayout)">
+                <NotAuthorized>
+                    @if (context.User.Identity?.IsAuthenticated != true)
+                    {
+                        <p>Δεν έχετε πρόσβαση. Παρακαλώ περιμένετε...</p>
+                        <!-- Ένα μικρό script-less redirect -->
+                        <meta http-equiv="refresh" content="0;url=/login" />
+                    }
+                    else
+                    {
+                        <p>Δεν έχετε τα απαραίτητα δικαιώματα για αυτή τη σελίδα.</p>
+                    }
+                </NotAuthorized>
+            </AuthorizeRouteView>
+            <FocusOnNavigate RouteData="@routeData" Selector="h1" />
+        </Found>
+        <NotFound>
+            <PageTitle>Not found</PageTitle>
+            <LayoutView Layout="@typeof(Layout.MainLayout)">
+                <p role="alert">Δεν βρέθηκε η σελίδα.</p>
+            </LayoutView>
+        </NotFound>
+    </Router>
+</CascadingAuthenticationState>

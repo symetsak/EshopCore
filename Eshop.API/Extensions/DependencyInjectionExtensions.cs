@@ -45,6 +45,7 @@ namespace Eshop.API.Extensions
             services.AddScoped<INotificationService, NotificationService>();
             services.AddScoped<IOrderReturnRepository, OrderReturnRepository>();
             services.AddScoped<IOrderReturnService, OrderReturnService>();
+            services.AddScoped<ISystemAuthService, SystemAuthService>();
 
             // Stripe & Payments
             // Κάνουμε register το συγκεκριμένο class για να μπορεί να το τραβήξει το Factory
