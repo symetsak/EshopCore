@@ -1,6 +1,11 @@
 ﻿using Eshop.Core.DTOs;
 using Eshop.Core.Entities;
 using Eshop.Core.Interfaces;
+using Microsoft.Extensions.Configuration;
+using System.IdentityModel.Tokens.Jwt;
+using System.Security.Claims;
+using System.Text;
+using Microsoft.IdentityModel.Tokens;
 
 namespace Eshop.Application.Services
 {
@@ -8,13 +13,15 @@ namespace Eshop.Application.Services
     {
         private readonly ITenantRepository _tenantRepository;
         private readonly ITenantDatabaseService _tenantDbService;
+        private readonly IConfiguration _config;
 
         // Κάνουμε inject το Interface του Core. 
         // Το Application layer δεν ξέρει ΠΟΥ αποθηκεύονται, απλά ζητάει το repository.
-        public TenantApplicationService(ITenantRepository tenantRepository, ITenantDatabaseService tenantDbService)
+        public TenantApplicationService(ITenantRepository tenantRepository, ITenantDatabaseService tenantDbService, IConfiguration config)
         {
             _tenantRepository = tenantRepository;
             _tenantDbService = tenantDbService;
+            _config = config;
         }
 
         public async Task<IEnumerable<Tenant>> GetAllTenantsAsync()
@@ -159,6 +166,39 @@ namespace Eshop.Application.Services
 
             tenant.Notes = notes;
             await _tenantRepository.SaveChangesAsync();
+        }
+
+        public async Task<string> GenerateImpersonationTokenAsync(string tenantId)
+        {
+            var tenant = await _tenantRepository.GetByIdAsync(tenantId);
+            if (tenant == null)
+                throw new KeyNotFoundException($"Ο πελάτης '{tenantId}' δεν βρέθηκε.");
+
+            var jwtKey = _config["JwtSettings:Secret"] ?? throw new InvalidOperationException("Δεν βρέθηκε το Jwt:Secret");
+            var jwtIssuer = _config["JwtSettings:Issuer"];
+            var jwtAudience = _config["JwtSettings:Audience"];
+
+            var claims = new List<Claim>
+            {
+                new Claim(ClaimTypes.NameIdentifier, "system-superadmin"),
+                new Claim(ClaimTypes.Name, "Super Admin Support"),
+                new Claim(ClaimTypes.Role, "Admininstrator"),
+                new Claim("role", "Administrator"),
+                new Claim("TenantId", tenant.Id)
+            };
+
+            var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey));
+            var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
+
+            var token = new JwtSecurityToken(
+                issuer: jwtIssuer,
+                audience: jwtAudience,
+                claims: claims,
+                expires: DateTime.UtcNow.AddHours(2),
+                signingCredentials: creds
+            );
+
+            return new JwtSecurityTokenHandler().WriteToken(token);
         }
     }
 }

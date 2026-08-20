@@ -132,5 +132,23 @@ namespace Eshop.API.Controllers
                 return NotFound(new { message = ex.Message });
             }
         }
+
+        [HttpPost("{id}/impersonate")]
+        public async Task<IActionResult> Impersonate(string id)
+        {
+            try
+            {
+                var tokenString = await _tenantAppService.GenerateImpersonationTokenAsync(id);
+                return Ok(new { token = tokenString });
+            }
+            catch (KeyNotFoundException ex)
+            {
+                return NotFound(new { message = ex.Message });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { message = "Σφάλμα κατά τη δημιουργία του Token.", error = ex.Message });
+            }
+        }
     }
 }

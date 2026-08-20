@@ -6,6 +6,7 @@
 @using System.Text.Json
 @inject HttpClient Http
 @inject Blazored.LocalStorage.ILocalStorageService LocalStorage
+@inject IJSRuntime JS
 
 <PageTitle>Πελάτες | Eshop System</PageTitle>
 
@@ -115,6 +116,9 @@
                                 </td>
 
                                 <td class="px-4 py-3 text-end">
+                                    <button class="btn btn-sm btn-dark me-2" title="Σύνδεση στο Panel του Πελάτη" @onclick="() => ExecuteMagicLogin(tenant.Id)">
+                                        <i class="bi bi-box-arrow-in-right"></i>
+                                    </button>
                                     <button class="btn btn-sm btn-light border text-info me-2" title="Οικονομικά" @onclick="() => OpenTransactionsModal(tenant)">
                                         <i class="bi bi-currency-euro"></i>
                                     </button>
@@ -394,6 +398,7 @@
     private bool isToggling = false;
     private string? errorMessage;
     private Dictionary<string, bool> isSavingNotes = new();
+    private class MagicLoginResponse { public string Token { get; set; } = string.Empty; }
 
     // --- Μεταβλητές για το Modal Επεξεργασίας ---
     private bool showEditModal = false;
@@ -711,6 +716,36 @@
         finally
         {
             isSavingNotes[tenant.Id] = false;
+        }
+    }
+
+    private async Task ExecuteMagicLogin(string tenantId)
+    {
+        try
+        {
+            var response = await Http.PostAsync($"api/Tenants/{tenantId}/impersonate", null);
+
+            if (response.IsSuccessStatusCode)
+            {
+                var result = await response.Content.ReadFromJsonAsync<MagicLoginResponse>();
+                if (result != null && !string.IsNullOrEmpty(result.Token))
+                {
+                    // ΠΡΟΣΟΧΗ: Άλλαξε το localhost:PORT με το σωστό URL που τρέχει το Eshop.AdminPanel.Client σου!
+                    var targetUrl = $"http://localhost:5085/magic-login?token={result.Token}&tenantId={tenantId}";
+
+                    // Ανοίγει σε νέα καρτέλα
+                    await JS.InvokeVoidAsync("window.open", targetUrl, "_blank");
+                }
+            }
+            else
+            {
+                var errorDetails = await response.Content.ReadAsStringAsync();
+                errorMessage = $"Απέτυχε: {errorDetails}";
+            }
+        }
+        catch (Exception)
+        {
+            errorMessage = "Σφάλμα επικοινωνίας κατά το Magic Login.";
         }
     }
 }

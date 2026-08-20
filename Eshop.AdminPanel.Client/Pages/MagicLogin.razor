@@ -1,0 +1,43 @@
+﻿@page "/magic-login"
+@layout Layout.EmptyLayout
+@using Eshop.AdminPanel.Client.Security
+@inject NavigationManager NavManager
+@inject Blazored.LocalStorage.ILocalStorageService LocalStorage
+@inject AuthenticationStateProvider AuthStateProvider
+
+<div class="d-flex justify-content-center align-items-center" style="height: 100vh;">
+    <div class="text-center">
+        <MudProgressCircular Color="Color.Primary" Size="Size.Large" Indeterminate="true" Class="mb-3" />
+        <MudText Typo="Typo.h5" Class="text-muted">Ασφαλής σύνδεση...</MudText>
+        <MudText Typo="Typo.body2" Class="mud-text-secondary">Παρακαλώ περιμένετε, εισέρχεστε ως Υποστήριξη.</MudText>
+    </div>
+</div>
+
+@code {
+    [SupplyParameterFromQuery(Name = "token")]
+    [Parameter]
+    public string? Token { get; set; }
+
+    [SupplyParameterFromQuery(Name = "tenantId")]
+    [Parameter]
+    public string? TenantId { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!string.IsNullOrEmpty(Token) && !string.IsNullOrEmpty(TenantId))
+        {
+            await LocalStorage.SetItemAsync("tenantId", TenantId.ToLower().Trim());
+
+            if (AuthStateProvider is CustomAuthStateProvider customAuth)
+            {
+                await customAuth.MarkUserAsAuthenticated(Token, "impersonation-dummy-refresh");
+            }
+
+            NavManager.NavigateTo("/admin/dashboard");
+        }
+        else
+        {
+            NavManager.NavigateTo("/login");
+        }
+    }
+}

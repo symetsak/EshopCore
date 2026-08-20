@@ -18,6 +18,29 @@ namespace Eshop.AdminPanel.Client.Security
             _anonymous = new AuthenticationState(new ClaimsPrincipal(new ClaimsIdentity()));
         }
 
+        // Διορθώνει το πρόβλημα με τα μικρά ονόματα των Roles στα Tokens 
+        private IList<Claim> FormatClaims(IEnumerable<Claim> parsedClaims)
+        {
+            var claims = parsedClaims.ToList();
+
+            var roleClaims = claims.Where(c => c.Type == "role" || c.Type == "Role").ToList();
+            foreach (var rc in roleClaims)
+            {
+                if (!claims.Any(c => c.Type == ClaimTypes.Role && c.Value == rc.Value))
+                {
+                    claims.Add(new Claim(ClaimTypes.Role, rc.Value));
+                }
+            }
+
+            var nameClaim = claims.FirstOrDefault(c => c.Type == "name" || c.Type == "unique_name");
+            if (nameClaim != null && !claims.Any(c => c.Type == ClaimTypes.Name))
+            {
+                claims.Add(new Claim(ClaimTypes.Name, nameClaim.Value));
+            }
+
+            return claims;
+        }
+
         public override async Task<AuthenticationState> GetAuthenticationStateAsync()
         {
             var token = await _localStorage.GetItemAsync<string>("authToken");
@@ -35,13 +58,11 @@ namespace Eshop.AdminPanel.Client.Security
 
             try
             {
-                // Μόλις βρούμε token, προετοιμάζουμε τον HttpClient βάζοντας το Bearer Header
-                _httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("bearer", token);
-
-                var claims = JwtParser.ParseClaimsFromJwt(token);
+                var originalClaims = JwtParser.ParseClaimsFromJwt(token);
+                var formattedClaims = FormatClaims(originalClaims);
 
                 // Δημιουργία της ταυτότητας του χρήστη (προσοχή στο authenticationType "jwt" για να θεωρηθεί Authenticated!)
-                var identity = new ClaimsIdentity(claims, "jwt", "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/name", "http://schemas.microsoft.com/ws/2008/06/identity/claims/role");
+                var identity = new ClaimsIdentity(formattedClaims, "jwt", "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/name", "http://schemas.microsoft.com/ws/2008/06/identity/claims/role");
                 var user = new ClaimsPrincipal(identity);
 
                 return new AuthenticationState(user);
@@ -61,12 +82,14 @@ namespace Eshop.AdminPanel.Client.Security
         public async Task MarkUserAsAuthenticated(string token, string refreshToken)
         {
             await _localStorage.SetItemAsync("authToken", token);
-            await _localStorage.SetItemAsync("refreshToken", refreshToken); 
+            await _localStorage.SetItemAsync("refreshToken", refreshToken);
 
             _httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("bearer", token);
 
-            var claims = JwtParser.ParseClaimsFromJwt(token);
-            var identity = new ClaimsIdentity(claims, "jwt", "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/name", "http://schemas.microsoft.com/ws/2008/06/identity/claims/role");
+            var originalClaims = JwtParser.ParseClaimsFromJwt(token);
+            var formattedClaims = FormatClaims(originalClaims);
+
+            var identity = new ClaimsIdentity(formattedClaims, "jwt", "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/name", "http://schemas.microsoft.com/ws/2008/06/identity/claims/role");
             var user = new ClaimsPrincipal(identity);
 
             var authState = Task.FromResult(new AuthenticationState(user));
@@ -77,7 +100,7 @@ namespace Eshop.AdminPanel.Client.Security
         public async Task MarkUserAsLoggedOut()
         {
             await _localStorage.RemoveItemAsync("authToken");
-            await _localStorage.RemoveItemAsync("refreshToken"); 
+            await _localStorage.RemoveItemAsync("refreshToken");
 
             _httpClient.DefaultRequestHeaders.Remove("Authorization");
 
