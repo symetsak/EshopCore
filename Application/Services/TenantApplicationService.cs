@@ -54,7 +54,7 @@ namespace Eshop.Application.Services
             return $"Ο πελάτης '{tenant.Name}' και η προσωπική του βάση δεδομένων δημιουργήθηκαν με επιτυχία!";
         }
 
-        public async Task UpdateTenantDetailsAsync(string id, UpdateTenantDetailsDto dto)
+        public async Task UpdateTenantDetailsAsync(string id, UpdateΤenantDetailsDto dto)
         {
             var tenant = await _tenantRepository.GetByIdAsync(id);
             if (tenant == null)
@@ -79,6 +79,86 @@ namespace Eshop.Application.Services
             await _tenantRepository.SaveChangesAsync();
 
             return tenant.IsActive;
+        }
+
+        public async Task<IEnumerable<TenantTransactionDto>> GetTenantTransactionsAsync(string tenantId)
+        {
+            var transactions = await _tenantRepository.GetTransactionsByTenantIdAsync(tenantId);
+
+            return transactions.Select(t => new TenantTransactionDto
+            {
+                Id = t.Id,
+                CreatedAt = t.CreatedAt,
+                Description = t.Description,
+                Amount = t.Amount,
+                Type = (int)t.Type
+            });
+        }
+
+        public async Task<decimal> AddTransactionAndUpdateBalanceAsync(string tenantId, CreateTransactionDto dto)
+        {
+            var tenant = await _tenantRepository.GetByIdAsync(tenantId);
+            if (tenant == null)
+                throw new KeyNotFoundException($"Ο πελάτης με ID '{tenantId}' δεν βρέθηκε.");
+
+            // Δημιουργία της συναλλαγής
+            var transaction = new TenantTransaction
+            {
+                TenantId = tenant.Id,
+                Description = dto.Description,
+                Amount = dto.Amount,
+                Type = (TransactionType)dto.Type,
+                CreatedAt = DateTime.UtcNow
+            };
+
+            // Ενημέρωση του Υπολοίπου (Balance)
+            if (transaction.Type == TransactionType.Charge)
+            {
+                tenant.Balance += transaction.Amount; // Χρέωση: Το υπόλοιπο μεγαλώνει
+            }
+            else if (transaction.Type == TransactionType.Payment)
+            {
+                tenant.Balance -= transaction.Amount; // Πληρωμή: Το υπόλοιπο μικραίνει
+            }
+
+            await _tenantRepository.AddTransactionAsync(transaction);
+            await _tenantRepository.SaveChangesAsync();
+
+            return tenant.Balance; // Επιστρέφουμε το νέο υπόλοιπο
+        }
+
+        public async Task<decimal> DeleteTransactionAndUpdateBalanceAsync(string tenantId, int transactionId)
+        {
+            var tenant = await _tenantRepository.GetByIdAsync(tenantId);
+            if (tenant == null) throw new KeyNotFoundException("Ο πελάτης δεν βρέθηκε.");
+
+            var transaction = await _tenantRepository.GetTransactionByIdAsync(transactionId);
+            if (transaction == null || transaction.TenantId != tenantId)
+                throw new KeyNotFoundException("Η συναλλαγή δεν βρέθηκε ή δεν ανήκει σε αυτόν τον πελάτη.");
+
+            // Αντιστροφή της πράξης στο Υπόλοιπο (Reverse)
+            if (transaction.Type == TransactionType.Charge)
+            {
+                tenant.Balance -= transaction.Amount; 
+            }
+            else if (transaction.Type == TransactionType.Payment)
+            {
+                tenant.Balance += transaction.Amount;
+            }
+
+            await _tenantRepository.DeleteTransactionAsync(transaction);
+            await _tenantRepository.SaveChangesAsync();
+
+            return tenant.Balance;
+        }
+
+        public async Task UpdateTenantNotesAsync(string id, string? notes)
+        {
+            var tenant = await _tenantRepository.GetByIdAsync(id);
+            if (tenant == null) throw new KeyNotFoundException($"Ο πελάτης με ID '{id}' δεν βρέθηκε.");
+
+            tenant.Notes = notes;
+            await _tenantRepository.SaveChangesAsync();
         }
     }
 }

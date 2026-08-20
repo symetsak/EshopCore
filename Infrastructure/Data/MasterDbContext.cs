@@ -12,6 +12,7 @@ namespace Eshop.Infrastructure.Data
 
         public DbSet<Tenant> Tenants { get; set; }
         public DbSet<SuperAdmin> SuperAdmins { get; set; }
+        public DbSet<TenantTransaction> TenantTransactions { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -29,6 +30,24 @@ namespace Eshop.Infrastructure.Data
                 entity.Property(e => e.City).HasMaxLength(100);
                 entity.Property(e => e.Email).HasMaxLength(150);
                 entity.Property(e => e.Mobile).HasMaxLength(20);
+                entity.Property(e => e.Notes).HasMaxLength(1000);
+
+                // Ορίζουμε ότι το Balance είναι δεκαδικός (χρήματα)
+                entity.Property(e => e.Balance).HasColumnType("decimal(18,2)");
+
+                // Σχέση 1-προς-πολλά (Ένας Tenant έχει πολλές Συναλλαγές)
+                entity.HasMany(e => e.Transactions)
+                      .WithOne(t => t.Tenant)
+                      .HasForeignKey(t => t.TenantId)
+                      .OnDelete(DeleteBehavior.Cascade);
+            });
+
+            modelBuilder.Entity<TenantTransaction>(entity =>
+            {
+                entity.ToTable("TenantTransactions");
+                entity.HasKey(e => e.Id);
+                entity.Property(e => e.Description).IsRequired().HasMaxLength(255);
+                entity.Property(e => e.Amount).HasColumnType("decimal(18,2)");
             });
 
             modelBuilder.Entity<SuperAdmin>().HasData(

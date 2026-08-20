@@ -52,7 +52,7 @@ namespace Eshop.API.Controllers
 
         // 1. Ενημέρωση Στοιχείων
         [HttpPut("{id}")]
-        public async Task<IActionResult> UpdateTenantDetails(string id, [FromBody] UpdateTenantDetailsDto dto)
+        public async Task<IActionResult> UpdateTenantDetails(string id, [FromBody] UpdateΤenantDetailsDto dto)
         {
             try
             {
@@ -74,6 +74,58 @@ namespace Eshop.API.Controllers
                 var newStatus = await _tenantAppService.ToggleTenantStatusAsync(id);
                 var statusMsg = newStatus ? "ενεργοποιήθηκε" : "απενεργοποιήθηκε (Suspend)";
                 return Ok(new { message = $"Ο πελάτης {statusMsg} επιτυχώς.", isActive = newStatus });
+            }
+            catch (KeyNotFoundException ex)
+            {
+                return NotFound(new { message = ex.Message });
+            }
+        }
+
+        // 3. Λήψη Ιστορικού Συναλλαγών
+        [HttpGet("{id}/transactions")]
+        public async Task<IActionResult> GetTransactions(string id)
+        {
+            var transactions = await _tenantAppService.GetTenantTransactionsAsync(id);
+            return Ok(transactions);
+        }
+
+        // 4. Προσθήκη Νέας Συναλλαγής (Χρέωση / Πληρωμή)
+        [HttpPost("{id}/transactions")]
+        public async Task<IActionResult> AddTransaction(string id, [FromBody] CreateTransactionDto dto)
+        {
+            try
+            {
+                var newBalance = await _tenantAppService.AddTransactionAndUpdateBalanceAsync(id, dto);
+                return Ok(new { message = "Η συναλλαγή καταχωρήθηκε επιτυχώς.", newBalance });
+            }
+            catch (KeyNotFoundException ex)
+            {
+                return NotFound(new { message = ex.Message });
+            }
+        }
+
+        // 5. Διαγραφή/Αναίρεση Συναλλαγής
+        [HttpDelete("{tenantId}/transactions/{transactionId}")]
+        public async Task<IActionResult> DeleteTransaction(string tenantId, int transactionId)
+        {
+            try
+            {
+                var newBalance = await _tenantAppService.DeleteTransactionAndUpdateBalanceAsync(tenantId, transactionId);
+                return Ok(new { message = "Η συναλλαγή διαγράφηκε επιτυχώς.", newBalance });
+            }
+            catch (KeyNotFoundException ex)
+            {
+                return NotFound(new { message = ex.Message });
+            }
+        }
+
+        [HttpPatch("{id}/notes")]
+        public async Task<IActionResult> UpdateTenantNotes(string id, [FromBody] UpdateTenantNotesDto dto)
+        {
+            try
+            {
+                await _tenantAppService.UpdateTenantNotesAsync(id, dto.Notes);
+                return Ok(new { message = "Οι σημειώσεις αποθηκεύτηκαν επιτυχώς." });
             }
             catch (KeyNotFoundException ex)
             {

@@ -10,5 +10,8 @@
         public string? City { get; set; }
         public string? Email { get; set; }
         public string? Mobile { get; set; }
+        public decimal Balance { get; set; } = 0;
+        public string? Notes { get; set; }
+        public ICollection<TenantTransaction> Transactions { get; set; } = new List<TenantTransaction>();
     }
 }
