@@ -1,16 +1,130 @@
 ﻿@page "/"
-@attribute [Authorize]
+@inject HttpClient Http
+@implements IDisposable
+@using Eshop.SystemPanel.Models
 
-<PageTitle>Dashboard | Eshop System</PageTitle>
+<PageTitle>Dashboard - System Panel</PageTitle>
 
-<h3 class="fw-bold mb-4">Κεντρικός Πίνακας Ελέγχου</h3>
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-md-6 col-lg-4">
 
-<div class="row">
-    <div class="col-md-12">
-        <div class="card border-0 shadow-sm rounded-4 p-4 text-center text-muted">
-            <i class="bi bi-bar-chart-line fs-1 mb-3"></i>
-            <h5>Καλώς ήρθες στο νέο σου Eshop Panel!</h5>
-            <p>Εδώ θα εμφανιστούν τα στατιστικά στην επόμενη φάση.</p>
+            <!-- Widget: Κατάσταση Συστήματος -->
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-white d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">
+                        <i class="bi bi-activity"></i> Κατάσταση Συστήματος
+                    </h5>
+                    @if (isLoading)
+                    {
+                        <span class="badge bg-secondary">Φόρτωση...</span>
+                    }
+                    else
+                    {
+                        <span class="@GetOverallBadgeClass(healthData?.Status)">
+                            @(healthData?.Status == "Healthy" ? "Σύστημα Online" : (healthData?.Status ?? "API Offline"))
+                        </span>
+                    }
+                </div>
+
+                <div class="card-body p-0">
+                    <ul class="list-group list-group-flush">
+                        @if (isLoading)
+                        {
+                            <li class="list-group-item text-center text-muted py-4">
+                                <div class="spinner-border spinner-border-sm" role="status"></div>
+                                <span class="ms-2">Ανάκτηση δεδομένων...</span>
+                            </li>
+                        }
+                        else if (healthData != null && healthData.Checks != null)
+                        {
+                            @foreach (var check in healthData.Checks)
+                            {
+                                <li class="list-group-item d-flex justify-content-between align-items-center p-3">
+                                    <div>
+                                        <strong>@(check.Name == "MasterDatabase" ? "Κεντρική Βάση (Master)" : "Βάσεις Πελατών (Tenants)")</strong>
+
+                                        <!-- Αν υπάρχει πρόβλημα, το κάνουμε κόκκινο και έντονο -->
+                                        <div class="small @(check.Status != "Healthy" ? "text-danger fw-bold" : "text-muted")">
+                                            @(string.IsNullOrEmpty(check.Description) ? "Λειτουργεί κανονικά" : check.Description)
+                                        </div>
+                                    </div>
+                                    <span class="badge rounded-pill @GetBadgeClass(check.Status)">
+                                        @check.Status
+                                    </span>
+                                </li>
+                            }
+                        }
+                        else
+                        {
+                            <li class="list-group-item text-center text-danger py-4">
+                                Δεν ήταν δυνατή η σύνδεση με τον server.
+                            </li>
+                        }
+                    </ul>
+                </div>
+
+                <div class="card-footer bg-white text-muted small text-end">
+                    Τελευταία ενημέρωση: @lastUpdated
+                </div>
+            </div>
+
         </div>
     </div>
 </div>
+
+@code {
+    private HealthCheckResponse? healthData;
+    private bool isLoading = true;
+    private string lastUpdated = "-";
+    private System.Threading.Timer? _timer;
+
+    private readonly string _apiUrl = "http://localhost:5284/api/health";
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadHealthData();
+
+        _timer = new System.Threading.Timer(async _ =>
+        {
+            await LoadHealthData();
+            await InvokeAsync(StateHasChanged);
+        }, null, 30000, 30000);
+    }
+
+    private async Task LoadHealthData()
+    {
+        try
+        {
+            healthData = await Http.GetFromJsonAsync<HealthCheckResponse>(_apiUrl);
+            lastUpdated = DateTime.Now.ToString("HH:mm:ss");
+        }
+        catch (Exception)
+        {
+            healthData = new HealthCheckResponse { Status = "Offline" };
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private string GetOverallBadgeClass(string? status) => status switch
+    {
+        "Healthy" => "badge bg-success",
+        "Degraded" => "badge bg-warning text-dark",
+        _ => "badge bg-danger"
+    };
+
+    private string GetBadgeClass(string? status) => status switch
+    {
+        "Healthy" => "bg-success",
+        "Degraded" => "bg-warning text-dark",
+        _ => "bg-danger"
+    };
+
+    public void Dispose()
+    {
+        _timer?.Dispose();
+    }
+}

@@ -51,7 +51,13 @@ namespace Eshop.Infrastructure.Data
                     throw new InvalidOperationException("Δεν βρέθηκε έγκυρο Connection String για τον συγκεκριμένο πελάτη.");
                 }
 
-                optionsBuilder.UseNpgsql(connString);
+                optionsBuilder.UseNpgsql(connString, npgsqlOptions =>
+                {
+                    npgsqlOptions.EnableRetryOnFailure(
+                        maxRetryCount: 3,
+                        maxRetryDelay: TimeSpan.FromSeconds(5),
+                        errorCodesToAdd: null);
+                });
             }
 
             base.OnConfiguring(optionsBuilder);

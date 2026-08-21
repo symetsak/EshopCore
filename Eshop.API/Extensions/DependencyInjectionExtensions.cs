@@ -17,12 +17,9 @@ namespace Eshop.API.Extensions
         public static IServiceCollection AddEshopServices(this IServiceCollection services)
         {
             // Tenancy & Core
-            // Λέμε στο .NET: Όταν κάποιος ζητάει το ITenantRepository, δώσε του το TenantRepository από το Infrastructure
             services.AddScoped<ITenantRepository, TenantRepository>();
-            // Λέμε στο .NET πώς να κατασκευάζει το Service του Application Layer
             services.AddScoped<TenantApplicationService>();
             services.AddScoped<ITenantDatabaseService, TenantDatabaseService>();
-            // Ο TenantProvider πρέπει να είναι Scoped (ένας ανά HTTP Request)
             services.AddScoped<ITenantProvider, TenantProvider>();
 
             // Business Services & Repositories
@@ -54,29 +51,14 @@ namespace Eshop.API.Extensions
             services.AddScoped<AuditLogInterceptor>();
 
             // Stripe & Payments
-            // Κάνουμε register το συγκεκριμένο class για να μπορεί να το τραβήξει το Factory
             services.AddScoped<Eshop.Application.Payments.StripePaymentStrategy>();
-            // Κάνουμε register το Strategy Interface (για γενική χρήση αν χρειαστεί)
             services.AddScoped<Eshop.Core.Interfaces.IPaymentStrategy, Eshop.Application.Payments.StripePaymentStrategy>();
-            // Κάνουμε register το ίδιο το Factory
             services.AddScoped<Eshop.Core.Interfaces.IPaymentStrategyFactory, Eshop.Application.Payments.PaymentStrategyFactory>();
 
-            // Εγγραφή του Background Worker για αυτόματη ακύρωση απλήρωτων παραγγελιών κάρτας
+            // Background Workers
             services.AddHostedService<PaymentTimeoutWorker>();
-
-            // Ενεργοποιούμε το Background Service
             services.AddHostedService<AuditLogCleanupService>();
-
-            // Εγγραφή του Background Worker για αυτόματη εκαθάριση ληγμένων Refresh Tokens από τη βάση
             services.AddHostedService<Eshop.Infrastructure.Services.TokenCleanupService>();
-
-            // Συνδέουμε τον Interceptor στο ApplicationDbContext
-            services.AddDbContext<ApplicationDbContext>((sp, options) =>
-            {
-                // Πιάνουμε τον Interceptor και τον βάζουμε στα options
-                var interceptor = sp.GetRequiredService<AuditLogInterceptor>();
-                options.AddInterceptors(interceptor);
-            });
 
             return services;
         }
