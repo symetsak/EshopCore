@@ -13,6 +13,7 @@ namespace Eshop.Infrastructure.Data
         public DbSet<Tenant> Tenants { get; set; }
         public DbSet<SuperAdmin> SuperAdmins { get; set; }
         public DbSet<TenantTransaction> TenantTransactions { get; set; }
+        public DbSet<AuditLog> AuditLogs { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
