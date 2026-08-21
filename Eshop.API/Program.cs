@@ -38,6 +38,9 @@ builder.Services.AddCors(options =>
     });
 });
 
+// Αυτό ενεργοποιεί το IHttpContextAccessor
+builder.Services.AddHttpContextAccessor();
+
 var app = builder.Build();
 
 // 3. Automated Enterprise Migrations

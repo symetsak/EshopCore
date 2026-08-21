@@ -1,6 +1,10 @@
 ﻿using Eshop.API.BackgroundServices;
+using Eshop.API.Services;
+using Eshop.Application.Interfaces;
 using Eshop.Application.Services;
 using Eshop.Core.Interfaces;
+using Eshop.Infrastructure.Data;
+using Eshop.Infrastructure.Interceptors;
 using Eshop.Infrastructure.Repositories;
 using Eshop.Infrastructure.Services;
 using Eshop.Infrastructure.Tenancy;
@@ -46,6 +50,8 @@ namespace Eshop.API.Extensions
             services.AddScoped<IOrderReturnRepository, OrderReturnRepository>();
             services.AddScoped<IOrderReturnService, OrderReturnService>();
             services.AddScoped<ISystemAuthService, SystemAuthService>();
+            services.AddScoped<ICurrentUserService, CurrentUserService>();
+            services.AddScoped<AuditLogInterceptor>();
 
             // Stripe & Payments
             // Κάνουμε register το συγκεκριμένο class για να μπορεί να το τραβήξει το Factory
@@ -58,8 +64,19 @@ namespace Eshop.API.Extensions
             // Εγγραφή του Background Worker για αυτόματη ακύρωση απλήρωτων παραγγελιών κάρτας
             services.AddHostedService<PaymentTimeoutWorker>();
 
+            // Ενεργοποιούμε το Background Service
+            services.AddHostedService<AuditLogCleanupService>();
+
             // Εγγραφή του Background Worker για αυτόματη εκαθάριση ληγμένων Refresh Tokens από τη βάση
             services.AddHostedService<Eshop.Infrastructure.Services.TokenCleanupService>();
+
+            // Συνδέουμε τον Interceptor στο ApplicationDbContext
+            services.AddDbContext<ApplicationDbContext>((sp, options) =>
+            {
+                // Πιάνουμε τον Interceptor και τον βάζουμε στα options
+                var interceptor = sp.GetRequiredService<AuditLogInterceptor>();
+                options.AddInterceptors(interceptor);
+            });
 
             return services;
         }
