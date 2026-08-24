@@ -1,4 +1,5 @@
-﻿using Eshop.Core.Entities;
+﻿using Eshop.Core.DTOs;
+using Eshop.Core.Entities;
 using Eshop.Core.Interfaces;
 using Eshop.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
@@ -61,5 +62,75 @@ namespace Eshop.Infrastructure.Repositories
                 .FirstOrDefaultAsync(o => o.Id == id);
         }
 
+        public async Task<PagedResultDto<Order>> GetPagedOrdersAsync(OrderFilterDto filter)
+        {
+            var query = _context.Orders
+                .Include(o => o.Customer)
+                .Include(o => o.OrderItems).ThenInclude(oi => oi.Product!).ThenInclude(p => p.Category)
+                .AsQueryable();
+
+            // 1. ΦΙΛΤΡΟ: Αναζήτηση (με ID ή Όνομα/Email Πελάτη)
+            if (!string.IsNullOrWhiteSpace(filter.SearchTerm))
+            {
+                // Αφαιρούμε το '#' σε περίπτωση που ο χρήστης ψάξει "#63"
+                var search = filter.SearchTerm.ToLower().Replace("#", "");
+                bool isNumeric = int.TryParse(search, out int searchId);
+
+                query = query.Where(o =>
+                    (isNumeric && o.Id == searchId) ||
+                    (o.Customer != null && (o.Customer.FirstName + " " + o.Customer.LastName).ToLower().Contains(search)) ||
+                    (o.Customer != null && o.Customer.Email.ToLower().Contains(search))
+                );
+            }
+
+            // 2. ΦΙΛΤΡΟ: Ημερομηνίες
+            if (filter.MinDate.HasValue)
+            {
+                query = query.Where(o => o.OrderDate >= filter.MinDate.Value.Date);
+            }
+
+            if (filter.MaxDate.HasValue)
+            {
+                var nextDay = filter.MaxDate.Value.Date.AddDays(1);
+                query = query.Where(o => o.OrderDate < nextDay);
+            }
+
+            // 3. ΦΙΛΤΡΟ: Καταστάσεις (Statuses) - Πολλαπλή επιλογή
+            if (filter.Statuses != null && filter.Statuses.Any())
+                query = query.Where(o => filter.Statuses.Contains(o.Status));
+
+            // 4. ΦΙΛΤΡΟ: Τρόποι Πληρωμής - Πολλαπλή επιλογή
+            if (filter.PaymentMethods != null && filter.PaymentMethods.Any())
+                query = query.Where(o => filter.PaymentMethods.Contains(o.PaymentMethod));
+
+            // 5. ΤΑΞΙΝΟΜΗΣΗ (Sorting)
+            query = filter.SortBy?.ToLower() switch
+            {
+                "id" => query.OrderBy(o => o.Id),
+                "id_desc" => query.OrderByDescending(o => o.Id),
+                "date" => query.OrderBy(o => o.OrderDate),
+                "date_desc" => query.OrderByDescending(o => o.OrderDate),
+                "amount" => query.OrderBy(o => o.TotalAmount),
+                "amount_desc" => query.OrderByDescending(o => o.TotalAmount),
+                _ => query.OrderByDescending(o => o.OrderDate) // Default: Οι πιο πρόσφατες πρώτες
+            };
+
+            // 6. ΣΕΛΙΔΟΠΟΙΗΣΗ
+            var totalCount = await query.CountAsync();
+
+            var items = await query
+                .Skip((filter.PageNumber - 1) * filter.PageSize)
+                .Take(filter.PageSize)
+                .ToListAsync();
+
+            return new PagedResultDto<Order>
+            {
+                Items = items,
+                PageNumber = filter.PageNumber,
+                PageSize = filter.PageSize,
+                TotalCount = totalCount,
+                TotalPages = (int)Math.Ceiling((double)totalCount / filter.PageSize)
+            };
+        }
     }
 }

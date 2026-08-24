@@ -10,158 +10,262 @@
 <MudText Typo="Typo.h5" Class="mb-4 font-weight-bold">Διαχείριση Επιστροφών</MudText>
 
 <MudPaper Elevation="2" Class="pa-4">
-    @if (_loading)
-    {
-        <div class="d-flex justify-center my-4">
-            <MudProgressCircular Color="Color.Primary" Indeterminate="true" />
-        </div>
-    }
-    else if (_returns == null || !_returns.Any())
-    {
-        <MudAlert Severity="Severity.Info" Class="my-2">Δεν βρέθηκαν αιτήματα επιστροφών.</MudAlert>
-    }
-    else
-    {
-        <MudTable Items="@_returns" Dense="true" Hover="true" Striped="false" Elevation="0">
-            <HeaderContent>
-                <MudTh></MudTh>
-                <MudTh>ID</MudTh>
-                <MudTh>ID Παραγγελίας</MudTh>
-                <MudTh>Τύπος</MudTh>
-                <MudTh>Ποσό Επιστροφής</MudTh>
-                <MudTh>Κατάσταση</MudTh>
-                <MudTh>Ημερομηνία</MudTh>
-                <MudTh>Ενημέρωση</MudTh>
-            </HeaderContent>
-            <RowTemplate>
-                <MudTd>
-                    <MudIconButton Icon="@(context.ShowDetails ? Icons.Material.Filled.KeyboardArrowUp : Icons.Material.Filled.KeyboardArrowDown)"
-                                   Size="Size.Small"
-                                   OnClick="@(() => ToggleDetails(context))" />
-                </MudTd>
-                <MudTd DataLabel="ID"><b>#@context.Id</b></MudTd>
-                <MudTd DataLabel="ID Παραγγελίας">#@context.OrderId</MudTd>
-                <MudTd DataLabel="Τύπος">
-                    @if (string.Equals(context.ReturnType, "Total", StringComparison.OrdinalIgnoreCase))
-                    {
-                        <MudChip T="string" Color="Color.Info" Size="Size.Small" Variant="Variant.Outlined">Ολική</MudChip>
-                    }
-                    else
-                    {
-                        <MudChip T="string" Color="Color.Warning" Size="Size.Small" Variant="Variant.Outlined">Μερική</MudChip>
-                    }
-                </MudTd>
-                <MudTd DataLabel="Ποσό Επιστροφής"><b>@context.RefundAmount.ToString("C")</b></MudTd>
-                <MudTd DataLabel="Κατάσταση">
-                    <MudChip T="string" Color="@GetStatusColor(context.Status)" Size="Size.Small">
-                        @context.Status
-                    </MudChip>
-                </MudTd>
-                <MudTd DataLabel="Ημερομηνία">@context.CreatedAt.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</MudTd>
-                <MudTd DataLabel="Ενημέρωση">
-                    @{
-                        var availableStatuses = GetAvailableStatuses(context.Status);
-                    }
-                    @if (availableStatuses.Any())
-                    {
-                        <MudSelect T="string" Value="@context.Status" ValueChanged="@((s) => UpdateStatusAsync(context.Id, s))"
-                                   Dense="true" Outlined="true" Margin="Margin.Dense" DisableUnderline="true">
-                            <MudSelectItem Value="@context.Status">@context.Status</MudSelectItem>
-                            @foreach (var status in availableStatuses)
-                            {
-                                <MudSelectItem Value="@status">@status</MudSelectItem>
-                            }
-                        </MudSelect>
-                    }
-                    else
-                    {
-                        <MudSelect T="string" Value="@context.Status" Disabled="true" Dense="true" Outlined="true" Margin="Margin.Dense">
-                            <MudSelectItem Value="@context.Status">@context.Status</MudSelectItem>
-                        </MudSelect>
-                    }
-                </MudTd>
-            </RowTemplate>
+    <MudTable T="OrderReturnUIModel" ServerData="ServerReload" Dense="true" Hover="true" Striped="false" Elevation="0" @ref="_table">
+        <ToolBarContent>
+            <MudSpacer />
+            <!-- Το υπάρχον Search Bar -->
+            <MudTextField T="string" ValueChanged="@(s => OnSearch(s))" Value="@_searchString" Placeholder="Αναζήτηση ID, Παραγγελίας, Πελάτη..."
+                          Immediate="true" DebounceInterval="500"
+                          Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search" IconSize="Size.Medium" Class="mt-0" Clearable="true" />
 
-            <ChildRowContent>
-                @if (context.ShowDetails)
+            <!-- Κουμπί Καθαρισμού Φίλτρων -->
+            <MudButton Variant="Variant.Outlined" Color="Color.Default" StartIcon="@Icons.Material.Filled.FilterAltOff" OnClick="ClearFilters" Class="ml-4">
+                Καθαρισμος
+            </MudButton>
+        </ToolBarContent>
+        <HeaderContent>
+            <MudTh><MudIcon Icon="@Icons.Material.Filled.ExpandMore" Style="opacity: 0;" /></MudTh>
+            <MudTh>
+                <MudTableSortLabel SortLabel="id" T="OrderReturnUIModel">ID</MudTableSortLabel>
+            </MudTh>
+            <MudTh>ID Παραγγελίας</MudTh>
+            <MudTh>
+                <div class="d-flex align-center">
+                    Τύπος
+                    <MudMenu Icon="@Icons.Material.Filled.MoreVert" Size="Size.Small" Dense="true" AnchorOrigin="Origin.BottomRight">
+                        <div class="pa-4" style="width: 250px;">
+                            <MudText Typo="Typo.subtitle2" Class="mb-2">Φίλτρο Τύπου</MudText>
+                            <MudSelect T="string" MultiSelection="true" SelectedValuesChanged="OnReturnTypesChanged" Clearable="true" Dense="true" Placeholder="Όλα">
+                                <MudSelectItem T="string" Value="@("Total")">Ολική</MudSelectItem>
+                                <MudSelectItem T="string" Value="@("Partial")">Μερική</MudSelectItem>
+                            </MudSelect>
+                        </div>
+                    </MudMenu>
+                </div>
+            </MudTh>
+            <MudTh>
+                <MudTableSortLabel SortLabel="amount" T="OrderReturnUIModel">Ποσό Επιστροφής</MudTableSortLabel>
+            </MudTh>
+            <MudTh>
+                <div class="d-flex align-center">
+                    Κατάσταση
+                    <MudMenu Icon="@Icons.Material.Filled.MoreVert" Size="Size.Small" Dense="true" AnchorOrigin="Origin.BottomRight">
+                        <div class="pa-4" style="width: 250px;">
+                            <MudText Typo="Typo.subtitle2" Class="mb-2">Φίλτρο Κατάστασης</MudText>
+                            <MudSelect T="string" MultiSelection="true" SelectedValuesChanged="OnStatusesChanged" Clearable="true" Dense="true" Placeholder="Όλα">
+                                <MudSelectItem T="string" Value="@("Requested")">Requested</MudSelectItem>
+                                <MudSelectItem T="string" Value="@("Accepted")">Accepted</MudSelectItem>
+                                <MudSelectItem T="string" Value="@("Received")">Received</MudSelectItem>
+                                <MudSelectItem T="string" Value="@("Approved")">Approved</MudSelectItem>
+                                <MudSelectItem T="string" Value="@("Rejected")">Rejected</MudSelectItem>
+                                <MudSelectItem T="string" Value="@("Refunded")">Refunded</MudSelectItem>
+                            </MudSelect>
+                        </div>
+                    </MudMenu>
+                </div>
+            </MudTh>
+            <MudTh>
+                <div class="d-flex align-center">
+                    <MudTableSortLabel SortLabel="date" T="OrderReturnUIModel">Ημερομηνία</MudTableSortLabel>
+                    <MudMenu Icon="@Icons.Material.Filled.MoreVert" Size="Size.Small" Dense="true" AnchorOrigin="Origin.BottomRight">
+                        <div class="pa-4" style="width: 250px;">
+                            <MudText Typo="Typo.subtitle2" Class="mb-2">Διάστημα Ημερομηνιών</MudText>
+                            <MudDatePicker Label="Από" DateChanged="OnMinDateChanged" Clearable="true" DateFormat="dd/MM/yyyy" Class="mb-2" />
+                            <MudDatePicker Label="Έως" DateChanged="OnMaxDateChanged" Clearable="true" DateFormat="dd/MM/yyyy" />
+                        </div>
+                    </MudMenu>
+                </div>
+            </MudTh>
+            <MudTh>Ενημέρωση</MudTh>
+        </HeaderContent>
+        <RowTemplate>
+            <MudTd>
+                <MudIconButton Icon="@(context.ShowDetails ? Icons.Material.Filled.KeyboardArrowUp : Icons.Material.Filled.KeyboardArrowDown)"
+                               Size="Size.Small"
+                               OnClick="@(() => ToggleDetails(context))" />
+            </MudTd>
+            <MudTd DataLabel="ID"><b>#@context.Id</b></MudTd>
+            <MudTd DataLabel="ID Παραγγελίας">#@context.OrderId</MudTd>
+            <MudTd DataLabel="Τύπος">
+                @if (string.Equals(context.ReturnType, "Total", StringComparison.OrdinalIgnoreCase))
                 {
-                    <MudTr>
-                        <td colspan="8">
-                            <MudCard Elevation="0" Class="pa-4 my-2" Style="background-color: var(--mud-palette-background-grey); border-left: 4px solid var(--mud-palette-primary);">
-                                <MudGrid>
-                                    <!-- ΑΡΙΣΤΕΡΑ: ΛΕΠΤΟΜΕΡΕΙΕΣ ΑΙΤΗΜΑΤΟΣ -->
-                                    <MudItem xs="12" md="6">
-                                        <MudPaper Class="pa-3 h-100" Outlined="true" Style="background-color: var(--mud-palette-surface);">
-                                            <div class="d-flex align-center mb-2">
-                                                <MudIcon Icon="@Icons.Material.Filled.AssignmentReturn" Color="Color.Primary" Class="mr-2" Size="Size.Small" />
-                                                <MudText Typo="Typo.subtitle2" Class="font-weight-bold">Στοιχεία Αιτήματος</MudText>
-                                            </div>
-                                            <MudDivider Class="mb-3" />
-
-                                            <div class="d-flex flex-column gap-1">
-                                                <MudText Typo="Typo.body2"><b>Τίτλος:</b> @context.Title</MudText>
-                                                <MudText Typo="Typo.body2"><b>Αιτιολογία:</b> @context.Reason</MudText>
-
-                                                @if (!string.IsNullOrEmpty(context.Iban))
-                                                {
-                                                    <MudText Typo="Typo.body2" Class="mt-2 color-success">
-                                                        <b>IBAN Κατάθεσης:</b> <MudChip T="string" Size="Size.Small" Color="Color.Success" Variant="Variant.Text">@context.Iban</MudChip>
-                                                    </MudText>
-                                                }
-                                            </div>
-                                        </MudPaper>
-                                    </MudItem>
-
-                                    <!-- ΔΕΞΙΑ: ΕΠΙΣΤΡΑΜΜΕΝΑ ΠΡΟΪΟΝΤΑ -->
-                                    <MudItem xs="12" md="6">
-                                        <MudText Typo="Typo.subtitle2" Class="mb-3 font-weight-bold">Επιστραμμένα Προϊόντα</MudText>
-                                        <MudTable Items="@context.ReturnItems" Context="itemContext" Dense="true" Hover="false" Elevation="0" Outlined="true">
-                                            <HeaderContent>
-                                                <MudTh>ID</MudTh>
-                                                <MudTh>Προϊόν</MudTh>
-                                                <MudTh>Ποσότητα</MudTh>
-                                                <MudTh>Τιμή Μονάδας</MudTh>
-                                                <MudTh>Σύνολο</MudTh>
-                                            </HeaderContent>
-                                            <RowTemplate>
-                                                <MudTd DataLabel="ID">@itemContext.ProductId</MudTd>
-                                                <MudTd DataLabel="Προϊόν">@itemContext.ProductName</MudTd>
-                                                <MudTd DataLabel="Ποσότητα">x @itemContext.Quantity</MudTd>
-                                                <MudTd DataLabel="Τιμή">@itemContext.UnitPrice.ToString("C")</MudTd>
-                                                <MudTd DataLabel="Σύνολο"><b>@((itemContext.Quantity * itemContext.UnitPrice).ToString("C"))</b></MudTd>
-                                            </RowTemplate>
-                                        </MudTable>
-                                    </MudItem>
-                                </MudGrid>
-                            </MudCard>
-                        </td>
-                    </MudTr>
+                    <MudChip T="string" Color="Color.Info" Size="Size.Small" Variant="Variant.Outlined">Ολική</MudChip>
                 }
-            </ChildRowContent>
-        </MudTable>
-    }
+                else
+                {
+                    <MudChip T="string" Color="Color.Warning" Size="Size.Small" Variant="Variant.Outlined">Μερική</MudChip>
+                }
+            </MudTd>
+            <MudTd DataLabel="Ποσό Επιστροφής"><b>@context.RefundAmount.ToString("C")</b></MudTd>
+            <MudTd DataLabel="Κατάσταση">
+                <MudChip T="string" Color="@GetStatusColor(context.Status)" Size="Size.Small">
+                    @context.Status
+                </MudChip>
+            </MudTd>
+            <MudTd DataLabel="Ημερομηνία">@context.CreatedAt.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</MudTd>
+            <MudTd DataLabel="Ενημέρωση">
+                @{
+                    var availableStatuses = GetAvailableStatuses(context.Status);
+                }
+                @if (availableStatuses.Any())
+                {
+                    <MudSelect T="string" Value="@context.Status" ValueChanged="@((s) => UpdateStatusAsync(context.Id, s))"
+                               Dense="true" Outlined="true" Margin="Margin.Dense" DisableUnderline="true">
+                        <MudSelectItem Value="@context.Status">@context.Status</MudSelectItem>
+                        @foreach (var status in availableStatuses)
+                        {
+                            <MudSelectItem Value="@status">@status</MudSelectItem>
+                        }
+                    </MudSelect>
+                }
+                else
+                {
+                    <MudSelect T="string" Value="@context.Status" Disabled="true" Dense="true" Outlined="true" Margin="Margin.Dense">
+                        <MudSelectItem Value="@context.Status">@context.Status</MudSelectItem>
+                    </MudSelect>
+                }
+            </MudTd>
+        </RowTemplate>
+
+        <ChildRowContent>
+            @if (context.ShowDetails)
+            {
+                <MudTr>
+                    <td colspan="8">
+                        <MudCard Elevation="0" Class="pa-4 my-2" Style="background-color: var(--mud-palette-background-grey); border-left: 4px solid var(--mud-palette-primary);">
+                            <MudGrid>
+                                <!-- ΑΡΙΣΤΕΡΑ: ΛΕΠΤΟΜΕΡΕΙΕΣ ΑΙΤΗΜΑΤΟΣ -->
+                                <MudItem xs="12" md="6">
+                                    <MudPaper Class="pa-3 h-100" Outlined="true" Style="background-color: var(--mud-palette-surface);">
+                                        <div class="d-flex align-center mb-2">
+                                            <MudIcon Icon="@Icons.Material.Filled.AssignmentReturn" Color="Color.Primary" Class="mr-2" Size="Size.Small" />
+                                            <MudText Typo="Typo.subtitle2" Class="font-weight-bold">Στοιχεία Αιτήματος</MudText>
+                                        </div>
+                                        <MudDivider Class="mb-3" />
+
+                                        <div class="d-flex flex-column gap-1">
+                                            <MudText Typo="Typo.body2"><b>Τίτλος:</b> @context.Title</MudText>
+                                            <MudText Typo="Typo.body2"><b>Αιτιολογία:</b> @context.Reason</MudText>
+
+                                            @if (!string.IsNullOrEmpty(context.Iban))
+                                            {
+                                                <MudText Typo="Typo.body2" Class="mt-2 color-success">
+                                                    <b>IBAN Κατάθεσης:</b> <MudChip T="string" Size="Size.Small" Color="Color.Success" Variant="Variant.Text">@context.Iban</MudChip>
+                                                </MudText>
+                                            }
+                                        </div>
+                                    </MudPaper>
+                                </MudItem>
+
+                                <!-- ΔΕΞΙΑ: ΕΠΙΣΤΡΑΜΜΕΝΑ ΠΡΟΪΟΝΤΑ -->
+                                <MudItem xs="12" md="6">
+                                    <MudText Typo="Typo.subtitle2" Class="mb-3 font-weight-bold">Επιστραμμένα Προϊόντα</MudText>
+                                    <MudTable Items="@context.ReturnItems" Context="itemContext" Dense="true" Hover="false" Elevation="0" Outlined="true">
+                                        <HeaderContent>
+                                            <MudTh>ID</MudTh>
+                                            <MudTh>Προϊόν</MudTh>
+                                            <MudTh>Ποσότητα</MudTh>
+                                            <MudTh>Τιμή Μονάδας</MudTh>
+                                            <MudTh>Σύνολο</MudTh>
+                                        </HeaderContent>
+                                        <RowTemplate>
+                                            <MudTd DataLabel="ID">@itemContext.ProductId</MudTd>
+                                            <MudTd DataLabel="Προϊόν">@itemContext.ProductName</MudTd>
+                                            <MudTd DataLabel="Ποσότητα">x @itemContext.Quantity</MudTd>
+                                            <MudTd DataLabel="Τιμή">@itemContext.UnitPrice.ToString("C")</MudTd>
+                                            <MudTd DataLabel="Σύνολο"><b>@((itemContext.Quantity * itemContext.UnitPrice).ToString("C"))</b></MudTd>
+                                        </RowTemplate>
+                                    </MudTable>
+                                </MudItem>
+                            </MudGrid>
+                        </MudCard>
+                    </td>
+                </MudTr>
+            }
+        </ChildRowContent>
+
+        <PagerContent>
+            <MudTablePager RowsPerPageString="Επιστροφές ανά σελίδα:" InfoFormat="{first_item}-{last_item} από {all_items}" />
+        </PagerContent>
+        <NoRecordsContent>
+            <MudAlert Severity="Severity.Info" Class="my-2">Δεν βρέθηκαν αιτήματα επιστροφών.</MudAlert>
+        </NoRecordsContent>
+        <LoadingContent>
+            <MudText Class="pa-4">Φόρτωση επιστροφών...</MudText>
+        </LoadingContent>
+    </MudTable>
 </MudPaper>
 
 @code {
-    private List<OrderReturnUIModel> _returns = new();
-    private bool _loading = true;
+    private MudTable<OrderReturnUIModel> _table = null!;
+    private string _searchString = "";
 
-    protected override async Task OnInitializedAsync()
+    // Μεταβλητές Φίλτρων
+    private DateTime? _minDate;
+    private DateTime? _maxDate;
+    private IEnumerable<string> _selectedStatuses = new HashSet<string>();
+    private IEnumerable<string> _selectedReturnTypes = new HashSet<string>();
+
+    private void OnSearch(string text)
     {
-        await LoadReturnsAsync();
+        _searchString = text;
+        _table.ReloadServerData();
     }
 
-    private async Task LoadReturnsAsync()
+    private void OnMinDateChanged(DateTime? date)
     {
-        _loading = true;
+        _minDate = date;
+        _table.ReloadServerData();
+    }
+
+    private void OnMaxDateChanged(DateTime? date)
+    {
+        _maxDate = date;
+        _table.ReloadServerData();
+    }
+
+    private void OnStatusesChanged(IEnumerable<string> statuses)
+    {
+        _selectedStatuses = statuses;
+        _table.ReloadServerData();
+    }
+
+    private void OnReturnTypesChanged(IEnumerable<string> types)
+    {
+        _selectedReturnTypes = types;
+        _table.ReloadServerData();
+    }
+
+    private async Task<TableData<OrderReturnUIModel>> ServerReload(TableState state, System.Threading.CancellationToken cancellationToken)
+    {
         try
         {
-            // Κλήση στο Service αντί για HttpClient
-            var data = await ReturnService.GetReturnsAsync();
+            var pageNumber = state.Page + 1;
+            var pageSize = state.PageSize;
+
+            string? sortBy = null;
+            if (!string.IsNullOrEmpty(state.SortLabel))
+            {
+                sortBy = state.SortDirection == SortDirection.Descending
+                    ? $"{state.SortLabel}_desc"
+                    : state.SortLabel;
+            }
+
+            var data = await ReturnService.GetPagedReturnsAsync(
+                pageNumber,
+                pageSize,
+                _searchString,
+                _minDate,
+                _maxDate,
+                _selectedStatuses.ToList(),
+                _selectedReturnTypes.ToList(),
+                sortBy
+            );
+
             if (data != null)
             {
                 // Mapping από Dto σε UIModel για να ελέγχουμε το accordion ShowDetails
-                _returns = data.Select(r => new OrderReturnUIModel
+                var mappedItems = data.Items.Select(r => new OrderReturnUIModel
                 {
                     Id = r.Id,
                     OrderId = r.OrderId,
@@ -177,16 +281,20 @@
                     Iban = r.Iban,
                     ShowDetails = false
                 }).ToList();
+
+                return new TableData<OrderReturnUIModel>
+                {
+                    TotalItems = data.TotalCount,
+                    Items = mappedItems
+                };
             }
         }
         catch (Exception ex)
         {
             Snackbar.Add($"Σφάλμα κατά τη φόρτωση των επιστροφών: {ex.Message}", Severity.Error);
         }
-        finally
-        {
-            _loading = false;
-        }
+
+        return new TableData<OrderReturnUIModel>() { Items = new List<OrderReturnUIModel>(), TotalItems = 0 };
     }
 
     private void ToggleDetails(OrderReturnUIModel item)
@@ -204,7 +312,7 @@
             if (response.IsSuccessStatusCode)
             {
                 Snackbar.Add($"Η κατάσταση της επιστροφής #{returnId} ενημερώθηκε σε {newStatus}!", Severity.Success);
-                await LoadReturnsAsync();
+                await _table.ReloadServerData(); // Ανανεώνουμε τον πίνακα αντί για LoadReturnsAsync()
             }
             else
             {
@@ -243,5 +351,24 @@
             "refunded" or "rejected" => new List<string>(),
             _ => new List<string>()
         };
+    }
+
+    // Το Model μεταφέρθηκε κάτω, μιας και υπήρχε στο παλιό code block (ή μπορεί να πάει στο AppModels.cs)
+    public class OrderReturnUIModel : OrderReturnResponseDto
+    {
+        public bool ShowDetails { get; set; }
+    }
+
+    private void ClearFilters()
+    {
+        // 1. Μηδενίζουμε όλες τις μεταβλητές
+        _searchString = "";
+        _minDate = null;
+        _maxDate = null;
+        _selectedStatuses = new HashSet<string>();
+        _selectedReturnTypes = new HashSet<string>();
+
+        // 2. Ζητάμε από τον πίνακα να ξαναχτυπήσει το API
+        _table.ReloadServerData();
     }
 }

@@ -5,11 +5,10 @@ using Eshop.Core.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
-
 namespace Eshop.API.Controllers
 {
     [ApiController]
-    [Authorize] // Όλος ο controller χρειάζεται login!
+    [Authorize]
     public class OrderReturnsController : ControllerBase
     {
         private readonly IOrderReturnService _returnService;
@@ -89,9 +88,9 @@ namespace Eshop.API.Controllers
         // ENDPOINTS ΓΙΑ ΤΟΝ ΔΙΑΧΕΙΡΙΣΤΗ (Admin)
         [HttpGet("api/admin/returns")]
         [Authorize(Roles = "Administrator, Employee")]
-        public async Task<IActionResult> GetAllReturns()
+        public async Task<IActionResult> GetAllReturns([FromQuery] OrderReturnFilterDto filter) // REFACTOR: Προστέθηκαν τα φίλτρα
         {
-            var result = await _returnService.GetAllReturnsAsync();
+            var result = await _returnService.GetFilteredReturnsAsync(filter);
             return Ok(result);
         }
 

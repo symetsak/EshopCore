@@ -9,15 +9,72 @@
 <MudContainer MaxWidth="MaxWidth.False" Class="mt-4">
     <MudText Typo="Typo.h4" Class="mb-5 font-weight-bold">Διαχείριση Παραγγελιών</MudText>
 
-    <MudTable Items="@_orders" Dense="false" Hover="true" Loading="@_loading" Striped="true" Elevation="2">
+    <MudTable T="OrderUIModel" ServerData="ServerReload" Dense="false" Hover="true" Striped="true" Elevation="2" @ref="_table">
+        <ToolBarContent>
+            <MudSpacer />
+            <MudTextField T="string" ValueChanged="@(s => OnSearch(s))" Value="@_searchString" Placeholder="Αναζήτηση ID, Πελάτη, Email..."
+                          Immediate="true" DebounceInterval="500"
+                          Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search" IconSize="Size.Medium" Class="mt-0" Clearable="true" />
+
+            <MudButton Variant="Variant.Outlined" Color="Color.Default" StartIcon="@Icons.Material.Filled.FilterAltOff" OnClick="ClearFilters" Class="ml-4">
+                Καθαρισμός
+            </MudButton>
+        </ToolBarContent>
         <HeaderContent>
             <MudTh><MudIcon Icon="@Icons.Material.Filled.ExpandMore" Style="opacity: 0;" /></MudTh>
-            <MudTh>ID</MudTh>
-            <MudTh>Ημερομηνία</MudTh>
+            <MudTh>
+                <MudTableSortLabel SortLabel="id" T="OrderUIModel">ID</MudTableSortLabel>
+            </MudTh>
+            <MudTh>
+                <div class="d-flex align-center">
+                    <MudTableSortLabel SortLabel="date" T="OrderUIModel">Ημερομηνία</MudTableSortLabel>
+                    <MudMenu Icon="@Icons.Material.Filled.MoreVert" Size="Size.Small" Dense="true" AnchorOrigin="Origin.BottomRight">
+                        <div class="pa-4" style="width: 250px;">
+                            <MudText Typo="Typo.subtitle2" Class="mb-2">Διάστημα Ημερομηνιών</MudText>
+                            <MudDatePicker Label="Από" DateChanged="OnMinDateChanged" Clearable="true" DateFormat="dd/MM/yyyy" Class="mb-2" />
+                            <MudDatePicker Label="Έως" DateChanged="OnMaxDateChanged" Clearable="true" DateFormat="dd/MM/yyyy" />
+                        </div>
+                    </MudMenu>
+                </div>
+            </MudTh>
             <MudTh>Πελάτης</MudTh> <!-- Νέα Στήλη -->
-            <MudTh>Σύνολο</MudTh>
-            <MudTh>Πληρωμή</MudTh>
-            <MudTh>Κατάσταση</MudTh>
+            <MudTh>
+                <MudTableSortLabel SortLabel="amount" T="OrderUIModel">Σύνολο</MudTableSortLabel>
+            </MudTh>
+            <MudTh>
+                <div class="d-flex align-center">
+                    Πληρωμή
+                    <MudMenu Icon="@Icons.Material.Filled.MoreVert" Size="Size.Small" Dense="true" AnchorOrigin="Origin.BottomRight">
+                        <div class="pa-4" style="width: 250px;">
+                            <MudText Typo="Typo.subtitle2" Class="mb-2">Φίλτρο Πληρωμής</MudText>
+                            <MudSelect T="string" MultiSelection="true" SelectedValuesChanged="OnPaymentMethodsChanged" Clearable="true" Dense="true" Placeholder="Όλα">
+                                <MudSelectItem T="string" Value="@("Card")">Κάρτα (Card)</MudSelectItem>
+                                <MudSelectItem T="string" Value="@("CashOnDelivery")">Αντικαταβολή</MudSelectItem>
+                            </MudSelect>
+                        </div>
+                    </MudMenu>
+                </div>
+            </MudTh>
+            <MudTh>
+                <div class="d-flex align-center">
+                    Κατάσταση
+                    <MudMenu Icon="@Icons.Material.Filled.MoreVert" Size="Size.Small" Dense="true" AnchorOrigin="Origin.BottomRight">
+                        <div class="pa-4" style="width: 250px;">
+                            <MudText Typo="Typo.subtitle2" Class="mb-2">Φίλτρο Κατάστασης</MudText>
+                            <MudSelect T="string" MultiSelection="true" SelectedValuesChanged="OnStatusesChanged" Clearable="true" Dense="true" Placeholder="Όλα">
+                                <MudSelectItem T="string" Value="@("Pending")">Pending</MudSelectItem>
+                                <MudSelectItem T="string" Value="@("PendingPayment")">Pending Payment</MudSelectItem>
+                                <MudSelectItem T="string" Value="@("Paid")">Paid</MudSelectItem>
+                                <MudSelectItem T="string" Value="@("Shipped")">Shipped</MudSelectItem>
+                                <MudSelectItem T="string" Value="@("Completed")">Completed</MudSelectItem>
+                                <MudSelectItem T="string" Value="@("Cancelled")">Cancelled</MudSelectItem>
+                                <MudSelectItem T="string" Value="@("Refunded")">Refunded</MudSelectItem>
+                                <MudSelectItem T="string" Value="@("CancellationRequested")">Cancel Requested</MudSelectItem>
+                            </MudSelect>
+                        </div>
+                    </MudMenu>
+                </div>
+            </MudTh>
             <MudTh Style="width: 220px;">Ενημέρωση</MudTh>
         </HeaderContent>
         <RowTemplate>
@@ -170,64 +227,117 @@
         </ChildRowContent>
 
         <PagerContent>
-            <MudTablePager InfoFormat="{first_item}-{last_item} από {all_items}" />
+            <MudTablePager RowsPerPageString="Παραγγελίες ανά σελίδα:" InfoFormat="{first_item}-{last_item} από {all_items}" />
         </PagerContent>
     </MudTable>
 </MudContainer>
 
 @code {
-    private List<OrderUIModel> _orders = new();
-    private bool _loading = true;
+    private MudTable<OrderUIModel> _table = null!;
+    private string _searchString = "";
 
-    protected override async Task OnInitializedAsync()
+    // Νέα μεταβλητά πεδία για τα φίλτρα
+    private DateTime? _minDate;
+    private DateTime? _maxDate;
+    private IEnumerable<string> _selectedStatuses = new HashSet<string>();
+    private IEnumerable<string> _selectedPaymentMethods = new HashSet<string>();
+
+    private void OnSearch(string text)
     {
-        await LoadOrdersAsync();
+        _searchString = text;
+        _table.ReloadServerData();
     }
 
-    private async Task LoadOrdersAsync()
+    private void OnMinDateChanged(DateTime? date)
     {
-        _loading = true;
+        _minDate = date;
+        _table.ReloadServerData();
+    }
+
+    private void OnMaxDateChanged(DateTime? date)
+    {
+        _maxDate = date;
+        _table.ReloadServerData();
+    }
+
+    private void OnStatusesChanged(IEnumerable<string> statuses)
+    {
+        _selectedStatuses = statuses;
+        _table.ReloadServerData();
+    }
+
+    private void OnPaymentMethodsChanged(IEnumerable<string> methods)
+    {
+        _selectedPaymentMethods = methods;
+        _table.ReloadServerData();
+    }
+
+    private async Task<TableData<OrderUIModel>> ServerReload(TableState state, System.Threading.CancellationToken cancellationToken)
+    {
         try
         {
-            // Κλήση στο Service αντί για HttpClient
-            var data = await OrderService.GetOrdersAsync();
+            var pageNumber = state.Page + 1;
+            var pageSize = state.PageSize;
 
-            // Map από το DTO στο UI Model για να υποστηρίζει το ShowDetails
-            _orders = data.Select(o => new OrderUIModel
+            string? sortBy = null;
+            if (!string.IsNullOrEmpty(state.SortLabel))
             {
-                Id = o.Id,
-                OrderDate = o.OrderDate,
-                TotalAmount = o.TotalAmount,
-                Status = o.Status,
-                CustomerId = o.CustomerId,
-                CustomerName = o.CustomerName,
-                PaymentMethod = o.PaymentMethod,
-                OrderItems = o.OrderItems,
-                Street = o.Street,
-                StreetNumber = o.StreetNumber,
-                City = o.City,
-                ZipCode = o.ZipCode,
-                CustomerEmail = o.CustomerEmail,
-                CustomerPhone = o.CustomerPhone,
-                ShowDetails = false // Default κλειστό
-            }).ToList();
+                sortBy = state.SortDirection == SortDirection.Descending
+                    ? $"{state.SortLabel}_desc"
+                    : state.SortLabel;
+            }
+
+            var data = await OrderService.GetPagedOrdersAsync(
+                pageNumber,
+                pageSize,
+                _searchString,
+                _minDate,
+                _maxDate,
+                _selectedStatuses.ToList(),
+                _selectedPaymentMethods.ToList(),
+                sortBy
+            );
+
+            if (data != null)
+            {
+                // Map από το DTO στο UI Model για να υποστηρίζει το ShowDetails
+                var mappedItems = data.Items.Select(o => new OrderUIModel
+                {
+                    Id = o.Id,
+                    OrderDate = o.OrderDate,
+                    TotalAmount = o.TotalAmount,
+                    Status = o.Status,
+                    CustomerId = o.CustomerId,
+                    CustomerName = o.CustomerName,
+                    PaymentMethod = o.PaymentMethod,
+                    OrderItems = o.OrderItems,
+                    Street = o.Street,
+                    StreetNumber = o.StreetNumber,
+                    City = o.City,
+                    ZipCode = o.ZipCode,
+                    CustomerEmail = o.CustomerEmail,
+                    CustomerPhone = o.CustomerPhone,
+                    ShowDetails = false // Default κλειστό
+                }).ToList();
+
+                return new TableData<OrderUIModel>
+                {
+                    TotalItems = data.TotalCount,
+                    Items = mappedItems
+                };
+            }
         }
         catch (Exception ex)
         {
-            Snackbar.Add($"Εξαίρεση: {ex.Message}", Severity.Error);
+            Snackbar.Add($"Σφάλμα φόρτωσης παραγγελιών: {ex.Message}", Severity.Error);
         }
-        finally
-        {
-            _loading = false;
-        }
+
+        return new TableData<OrderUIModel>() { Items = new List<OrderUIModel>(), TotalItems = 0 };
     }
 
     private async Task UpdateStatusAsync(int orderId, string newStatus)
     {
-        // Αν ο χρήστης ξαναεπέλεξε το ίδιο status, δεν κάνουμε API call
-        var currentOrder = _orders.FirstOrDefault(o => o.Id == orderId);
-        if (currentOrder != null && currentOrder.Status == newStatus) return;
-
+        // Αν ο χρήστης ξαναεπέλεξε το ίδιο status, δεν κάνουμε API call (Για το update state διαβάζουμε απ' ευθείας απ' το table logic)
         try
         {
             // Κλήση στο Service
@@ -236,7 +346,7 @@
             if (response.IsSuccessStatusCode)
             {
                 Snackbar.Add($"Η παραγγελία #{orderId} άλλαξε σε {newStatus}!", Severity.Success);
-                await LoadOrdersAsync();
+                await _table.ReloadServerData();
             }
             else
             {
@@ -287,8 +397,15 @@
     };
 
     // Μπορείς να μεταφέρεις αυτή την κλάση στο AppModels.cs!
-    public class OrderUIModel : OrderResponseDto
+    public class OrderUIModel : OrderResponseDto{}
+
+    private void ClearFilters()
     {
-        public bool ShowDetails { get; set; }
+        _searchString = "";
+        _minDate = null;
+        _maxDate = null;
+        _selectedStatuses = new HashSet<string>();
+        _selectedPaymentMethods = new HashSet<string>();
+        _table.ReloadServerData();
     }
 }

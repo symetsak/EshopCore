@@ -75,11 +75,29 @@ namespace Eshop.Infrastructure.Repositories
                 query = query.Where(p => p.Price <= filter.MaxPrice.Value);
             }
 
+            // 3.5. ΠΡΟΣΘΗΚΗ: ΦΙΛΤΡΟ: Εύρος Τιμής Προσφοράς (Min & Max Sale Price)
+            if (filter.MinSalePrice.HasValue)
+            {
+                query = query.Where(p => p.SalePrice >= filter.MinSalePrice.Value);
+            }
+            if (filter.MaxSalePrice.HasValue)
+            {
+                query = query.Where(p => p.SalePrice <= filter.MaxSalePrice.Value);
+            }
+
             // 4. ΤΑΞΙΝΟΜΗΣΗ (Sorting)
             query = filter.SortBy?.ToLower() switch
             {
-                "price_asc" => query.OrderBy(p => p.Price),
+                // ΠΡΟΣΘΗΚΗ: Ταξινομήσεις από το Blazor Frontend
+                "name" => query.OrderBy(p => p.Name),
+                "name_desc" => query.OrderByDescending(p => p.Name),
+                "price" => query.OrderBy(p => p.Price),
                 "price_desc" => query.OrderByDescending(p => p.Price),
+                "saleprice" => query.OrderBy(p => p.SalePrice),
+                "saleprice_desc" => query.OrderByDescending(p => p.SalePrice),
+                "stockquantity" => query.OrderBy(p => p.StockQuantity),
+                "stockquantity_desc" => query.OrderByDescending(p => p.StockQuantity),
+
                 "newest" => query.OrderByDescending(p => p.Id), // Οι νέες αφίξεις έχουν μεγαλύτερο ID
 
                 // Advanced: Ταξινόμηση Best Sellers με βάση τα OrderItems των ολοκληρωμένων παραγγελιών

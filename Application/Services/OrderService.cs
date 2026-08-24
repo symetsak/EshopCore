@@ -136,8 +136,7 @@ namespace Eshop.Application.Services
         public async Task<IEnumerable<OrderResponseDto>> GetCustomerOrdersAsync(int customerId) =>
             _mapper.Map<IEnumerable<OrderResponseDto>>(await _orderRepo.GetByCustomerIdAsync(customerId));
 
-        public async Task<IEnumerable<OrderResponseDto>> GetAllTenantOrdersAsync() =>
-            _mapper.Map<IEnumerable<OrderResponseDto>>(await _orderRepo.GetAllOrdersAsync());
+        // REFACTOR: Αφαιρέθηκε το GetAllTenantOrdersAsync() από εδώ.
 
         public async Task<OrderResponseDto?> UpdateOrderStatusAsync(int orderId, OrderStatusUpdateDto dto)
         {
@@ -338,5 +337,21 @@ namespace Eshop.Application.Services
         }
         public async Task<OrderResponseDto?> GetOrderDetailsForAdminAsync(int orderId) =>
             _mapper.Map<OrderResponseDto>(await _orderRepo.GetByIdWithItemsAsync(orderId));
+
+        public async Task<PagedResultDto<OrderResponseDto>> GetFilteredOrdersAsync(OrderFilterDto filter)
+        {
+            var pagedOrders = await _orderRepo.GetPagedOrdersAsync(filter);
+
+            var orderDtos = _mapper.Map<IEnumerable<OrderResponseDto>>(pagedOrders.Items);
+
+            return new PagedResultDto<OrderResponseDto>
+            {
+                Items = orderDtos,
+                PageNumber = pagedOrders.PageNumber,
+                PageSize = pagedOrders.PageSize,
+                TotalCount = pagedOrders.TotalCount,
+                TotalPages = pagedOrders.TotalPages
+            };
+        }
     }
 }

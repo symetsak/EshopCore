@@ -1,4 +1,5 @@
 ﻿using Eshop.Application.DTOs;
+using Eshop.Core.DTOs; // ΠΡΟΣΘΗΚΗ: Για το PagedResultDto και OrderReturnFilterDto
 
 namespace Eshop.Application.Services
 {
@@ -9,7 +10,7 @@ namespace Eshop.Application.Services
         Task<IEnumerable<OrderReturnResponseDto>> GetCustomerReturnsAsync(int customerId);
 
         // Για τον Admin
-        Task<IEnumerable<OrderReturnResponseDto>> GetAllReturnsAsync();
+        Task<PagedResultDto<OrderReturnResponseDto>> GetFilteredReturnsAsync(OrderReturnFilterDto filter); // REFACTOR: Αντικατέστησε το GetAllReturnsAsync
         Task<OrderReturnResponseDto?> GetReturnByIdAsync(int id);
         Task<OrderReturnResponseDto?> UpdateReturnStatusAsync(int returnId, OrderReturnStatusUpdateDto dto);
     }

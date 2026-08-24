@@ -13,6 +13,8 @@ namespace Eshop.Core.DTOs
         // 3. Εύρος Τιμών
         public decimal? MinPrice { get; set; }
         public decimal? MaxPrice { get; set; }
+        public decimal? MinSalePrice { get; set; }
+        public decimal? MaxSalePrice { get; set; }
 
         // 4. Ταξινόμηση (π.χ. "price_asc", "price_desc", "newest", "bestsellers")
         public string? SortBy { get; set; }

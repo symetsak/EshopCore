@@ -62,12 +62,13 @@ namespace Eshop.API.Controllers
             return Ok(orders);
         }
 
+        // REFACTOR: Το παλιό "admin/all" διαγράφηκε και αντικαταστάθηκε από το νέο που δέχεται φίλτρα!
         // GET: api/orders/admin/all
         [HttpGet("admin/all")]
-        [Authorize(Roles = "Administrator, Employee")] 
-        public async Task<IActionResult> GetAllTenantOrders()
+        [Authorize(Roles = "Administrator, Employee")]
+        public async Task<IActionResult> GetAllTenantOrders([FromQuery] OrderFilterDto filter)
         {
-            var orders = await _orderService.GetAllTenantOrdersAsync();
+            var orders = await _orderService.GetFilteredOrdersAsync(filter);
             return Ok(orders);
         }
 
@@ -88,7 +89,7 @@ namespace Eshop.API.Controllers
 
         // PUT: api/orders/admin/{id}/status
         [HttpPut("admin/{id}/status")]
-        [Authorize(Roles = "Administrator, Employee")] 
+        [Authorize(Roles = "Administrator, Employee")]
         public async Task<IActionResult> UpdateStatus(int id, [FromBody] OrderStatusUpdateDto dto)
         {
             if (string.IsNullOrEmpty(dto.Status))
@@ -108,7 +109,7 @@ namespace Eshop.API.Controllers
 
         // GET: api/orders/admin/dashboard
         [HttpGet("admin/dashboard")]
-        [Authorize] 
+        [Authorize]
         public async Task<IActionResult> GetDashboardStats()
         {
             var stats = await _orderService.GetAdminDashboardStatsAsync();
