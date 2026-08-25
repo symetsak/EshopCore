@@ -5,6 +5,7 @@
 @using System.Net.Http.Json
 @inject IOrderService OrderService
 @inject ISnackbar Snackbar
+@inject IJSRuntime JS
 
 <MudContainer MaxWidth="MaxWidth.False" Class="mt-4">
     <MudText Typo="Typo.h4" Class="mb-5 font-weight-bold">Διαχείριση Παραγγελιών</MudText>
@@ -15,10 +16,13 @@
             <MudTextField T="string" ValueChanged="@(s => OnSearch(s))" Value="@_searchString" Placeholder="Αναζήτηση ID, Πελάτη, Email..."
                           Immediate="true" DebounceInterval="500"
                           Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search" IconSize="Size.Medium" Class="mt-0" Clearable="true" />
-
             <MudButton Variant="Variant.Outlined" Color="Color.Default" StartIcon="@Icons.Material.Filled.FilterAltOff" OnClick="ClearFilters" Class="ml-4">
                 Καθαρισμός
             </MudButton>
+            <MudMenu Label="Εξαγωγή" Variant="Variant.Filled" Color="Color.Success" StartIcon="@Icons.Material.Filled.Download" Class="ml-4" Disabled="@_isExporting">
+                <MudMenuItem OnClick="ExportToExcel" Icon="@Icons.Material.Filled.TableChart">ως Excel (.xlsx)</MudMenuItem>
+                <MudMenuItem OnClick="ExportToPdf" Icon="@Icons.Material.Filled.PictureAsPdf">ως PDF (.pdf)</MudMenuItem>
+            </MudMenu>
         </ToolBarContent>
         <HeaderContent>
             <MudTh><MudIcon Icon="@Icons.Material.Filled.ExpandMore" Style="opacity: 0;" /></MudTh>
@@ -37,7 +41,7 @@
                     </MudMenu>
                 </div>
             </MudTh>
-            <MudTh>Πελάτης</MudTh> <!-- Νέα Στήλη -->
+            <MudTh>Πελάτης</MudTh> 
             <MudTh>
                 <MudTableSortLabel SortLabel="amount" T="OrderUIModel">Σύνολο</MudTableSortLabel>
             </MudTh>
@@ -241,6 +245,8 @@
     private DateTime? _maxDate;
     private IEnumerable<string> _selectedStatuses = new HashSet<string>();
     private IEnumerable<string> _selectedPaymentMethods = new HashSet<string>();
+    private bool _isExporting = false;
+    private string? _currentSortBy;
 
     private void OnSearch(string text)
     {
@@ -279,10 +285,10 @@
             var pageNumber = state.Page + 1;
             var pageSize = state.PageSize;
 
-            string? sortBy = null;
+            _currentSortBy = null;
             if (!string.IsNullOrEmpty(state.SortLabel))
             {
-                sortBy = state.SortDirection == SortDirection.Descending
+                _currentSortBy = state.SortDirection == SortDirection.Descending
                     ? $"{state.SortLabel}_desc"
                     : state.SortLabel;
             }
@@ -295,7 +301,7 @@
                 _maxDate,
                 _selectedStatuses.ToList(),
                 _selectedPaymentMethods.ToList(),
-                sortBy
+                _currentSortBy 
             );
 
             if (data != null)
@@ -407,5 +413,58 @@
         _selectedStatuses = new HashSet<string>();
         _selectedPaymentMethods = new HashSet<string>();
         _table.ReloadServerData();
+    }
+
+    // Οι μέθοδοι Εξαγωγής (Excel / PDF)
+    private async Task ExportToExcel()
+    {
+        _isExporting = true;
+        StateHasChanged(); // Ανανέωση UI για να γίνει disabled το κουμπί
+
+        try
+        {
+            var fileBytes = await OrderService.ExportOrdersExcelAsync(
+                _searchString, _minDate, _maxDate, _selectedStatuses.ToList(), _selectedPaymentMethods.ToList(), _currentSortBy);
+
+            using var streamRef = new DotNetStreamReference(new MemoryStream(fileBytes));
+            await JS.InvokeVoidAsync("downloadFileFromStream", $"Orders_Export_{DateTime.Now:yyyyMMdd_HHmm}.xlsx", streamRef);
+
+            Snackbar.Add("Η εξαγωγή σε Excel ολοκληρώθηκε!", Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Αποτυχία εξαγωγής: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _isExporting = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task ExportToPdf()
+    {
+        _isExporting = true;
+        StateHasChanged();
+
+        try
+        {
+            var fileBytes = await OrderService.ExportOrdersPdfAsync(
+                _searchString, _minDate, _maxDate, _selectedStatuses.ToList(), _selectedPaymentMethods.ToList(), _currentSortBy);
+
+            using var streamRef = new DotNetStreamReference(new MemoryStream(fileBytes));
+            await JS.InvokeVoidAsync("downloadFileFromStream", $"Orders_Export_{DateTime.Now:yyyyMMdd_HHmm}.pdf", streamRef);
+
+            Snackbar.Add("Η εξαγωγή σε PDF ολοκληρώθηκε!", Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Αποτυχία εξαγωγής: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _isExporting = false;
+            StateHasChanged();
+        }
     }
 }

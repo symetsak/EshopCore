@@ -262,5 +262,11 @@ namespace Eshop.Application.Services
 
             return _mapper.Map<OrderReturnResponseDto>(orderReturn);
         }
+
+        public async Task<IEnumerable<OrderReturnResponseDto>> GetReturnsForExportAsync(OrderReturnFilterDto filter)
+        {
+            var returns = await _returnRepo.GetReturnsForExportAsync(filter);
+            return _mapper.Map<IEnumerable<OrderReturnResponseDto>>(returns);
+        }
     }
 }

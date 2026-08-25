@@ -13,8 +13,7 @@ namespace Eshop.Core.Interfaces
         Task AddAsync(OrderReturn orderReturn);
         void Update(OrderReturn orderReturn);
         Task SaveChangesAsync();
-
-        // Το νέο endpoint για Pagination & Filters
         Task<PagedResultDto<OrderReturn>> GetPagedReturnsAsync(OrderReturnFilterDto filter);
+        Task<List<OrderReturn>> GetReturnsForExportAsync(OrderReturnFilterDto filter);
     }
 }

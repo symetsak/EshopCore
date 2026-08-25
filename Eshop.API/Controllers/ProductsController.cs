@@ -1,4 +1,5 @@
 ﻿using Eshop.API.Filters;
+using Eshop.Application.Services;
 using Eshop.Core.DTOs;
 using Eshop.Core.Interfaces;
 using Microsoft.AspNetCore.Authorization;
@@ -160,6 +161,28 @@ namespace Eshop.API.Controllers
             {
                 return NotFound(new { message = ex.Message });
             }
+        }
+
+        [HttpGet("export/excel")]
+        [Authorize(Roles = "Administrator, Employee")]
+        public async Task<IActionResult> ExportExcel([FromQuery] ProductFilterDto filter) 
+        {
+            var products = await _productService.GetProductsForExportAsync(filter); 
+            var exportService = HttpContext.RequestServices.GetRequiredService<IExportService>();
+            var fileBytes = exportService.GenerateProductsExcel(products);
+
+            return File(fileBytes, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", $"Products_Export_{DateTime.Now:yyyyMMdd_HHmm}.xlsx");
+        }
+
+        [HttpGet("export/pdf")]
+        [Authorize(Roles = "Administrator, Employee")]
+        public async Task<IActionResult> ExportPdf([FromQuery] ProductFilterDto filter) 
+        {
+            var products = await _productService.GetProductsForExportAsync(filter); 
+            var exportService = HttpContext.RequestServices.GetRequiredService<IExportService>();
+            var fileBytes = exportService.GenerateProductsPdf(products);
+
+            return File(fileBytes, "application/pdf", $"Products_Export_{DateTime.Now:yyyyMMdd_HHmm}.pdf");
         }
     }
 }

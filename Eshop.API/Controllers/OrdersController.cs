@@ -1,4 +1,5 @@
 ﻿using Eshop.API.Filters;
+using Eshop.Application.Services;
 using Eshop.Core.DTOs;
 using Eshop.Core.Interfaces;
 using Microsoft.AspNetCore.Authorization;
@@ -114,6 +115,34 @@ namespace Eshop.API.Controllers
         {
             var stats = await _orderService.GetAdminDashboardStatsAsync();
             return Ok(stats);
+        }
+
+        // GET: api/orders/admin/export/excel
+        [HttpGet("admin/export/excel")]
+        [Authorize(Roles = "Administrator, Employee")]
+        public async Task<IActionResult> ExportExcel([FromQuery] OrderFilterDto filter)
+        {
+            var orders = await _orderService.GetOrdersForExportAsync(filter);
+
+            // Κλήση στο νέο ExportService
+            var exportService = HttpContext.RequestServices.GetRequiredService<IExportService>();
+            var fileBytes = exportService.GenerateOrdersExcel(orders);
+
+            return File(fileBytes, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", $"Orders_Export_{DateTime.Now:yyyyMMdd_HHmm}.xlsx");
+        }
+
+        // GET: api/orders/admin/export/pdf
+        [HttpGet("admin/export/pdf")]
+        [Authorize(Roles = "Administrator, Employee")]
+        public async Task<IActionResult> ExportPdf([FromQuery] OrderFilterDto filter)
+        {
+            var orders = await _orderService.GetOrdersForExportAsync(filter);
+
+            // Κλήση στο νέο ExportService
+            var exportService = HttpContext.RequestServices.GetRequiredService<IExportService>();
+            var fileBytes = exportService.GenerateOrdersPdf(orders);
+
+            return File(fileBytes, "application/pdf", $"Orders_Export_{DateTime.Now:yyyyMMdd_HHmm}.pdf");
         }
     }
 }

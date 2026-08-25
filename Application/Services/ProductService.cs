@@ -1,4 +1,5 @@
-﻿using AutoMapper;
+﻿// ProductService.cs
+using AutoMapper;
 using Eshop.Core.DTOs;
 using Eshop.Core.Entities;
 using Eshop.Core.Interfaces;
@@ -8,10 +9,10 @@ namespace Eshop.Application.Services
 {
     public class ProductService : IProductService
     {
-        private readonly IProductRepository _productRepo; 
+        private readonly IProductRepository _productRepo;
         private readonly IMapper _mapper;
         private readonly IFileService _fileService;
-        private readonly INotificationRepository _notificationRepo; 
+        private readonly INotificationRepository _notificationRepo;
         private readonly IWishlistRepository _wishlistRepo;
 
         public ProductService(IProductRepository productRepo, IMapper mapper, IFileService fileService, INotificationRepository notificationRepo, IWishlistRepository wishlistRepo)
@@ -88,6 +89,13 @@ namespace Eshop.Application.Services
             };
         }
 
+        // ΠΡΟΣΘΗΚΗ: Υλοποίηση μεθόδου εξαγωγής (χωρίς σελιδοποίηση)
+        public async Task<IEnumerable<ProductResponseDto>> GetProductsForExportAsync(ProductFilterDto filter)
+        {
+            var products = await _productRepo.GetProductsForExportAsync(filter);
+            return _mapper.Map<IEnumerable<ProductResponseDto>>(products);
+        }
+
         public async Task<ProductResponseDto> UploadImageAsync(int productId, IFormFile file, string tenantId)
         {
             // 1. Φέρνουμε το Entity από το Repository
@@ -120,7 +128,7 @@ namespace Eshop.Application.Services
             // Κάνουμε το πεδίο null στη βάση
             product.ImageUrl = null;
             _productRepo.Update(product);
-            await _productRepo.SaveChangesAsync(); 
+            await _productRepo.SaveChangesAsync();
 
             return _mapper.Map<ProductResponseDto>(product);
         }

@@ -353,5 +353,11 @@ namespace Eshop.Application.Services
                 TotalPages = pagedOrders.TotalPages
             };
         }
+
+        public async Task<IEnumerable<OrderResponseDto>> GetOrdersForExportAsync(OrderFilterDto filter)
+        {
+            var orders = await _orderRepo.GetOrdersForExportAsync(filter);
+            return _mapper.Map<IEnumerable<OrderResponseDto>>(orders);
+        }
     }
 }

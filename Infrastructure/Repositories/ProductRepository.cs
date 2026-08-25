@@ -1,4 +1,5 @@
-﻿using Eshop.Core.DTOs;
+﻿// ProductRepository.cs
+using Eshop.Core.DTOs;
 using Eshop.Core.Entities;
 using Eshop.Core.Interfaces;
 using Eshop.Infrastructure.Data;
@@ -132,6 +133,61 @@ namespace Eshop.Infrastructure.Repositories
                 TotalCount = totalCount,
                 TotalPages = totalPages
             };
+        }
+
+        // Μέθοδος χωρίς σελιδοποίηση, για τη λειτουργία Εξαγωγής (Excel/PDF)
+        public async Task<List<Product>> GetProductsForExportAsync(ProductFilterDto filter)
+        {
+            var query = _context.Products.Include(p => p.Category).AsQueryable();
+
+            if (!string.IsNullOrWhiteSpace(filter.SearchTerm))
+            {
+                var search = filter.SearchTerm.ToLower();
+                query = query.Where(p => p.Name.ToLower().Contains(search) ||
+                                         (p.Description != null && p.Description.ToLower().Contains(search)));
+            }
+
+            if (filter.CategoryIds != null && filter.CategoryIds.Any())
+            {
+                query = query.Where(p => filter.CategoryIds.Contains(p.CategoryId));
+            }
+
+            if (filter.MinPrice.HasValue)
+            {
+                query = query.Where(p => p.Price >= filter.MinPrice.Value);
+            }
+            if (filter.MaxPrice.HasValue)
+            {
+                query = query.Where(p => p.Price <= filter.MaxPrice.Value);
+            }
+
+            if (filter.MinSalePrice.HasValue)
+            {
+                query = query.Where(p => p.SalePrice >= filter.MinSalePrice.Value);
+            }
+            if (filter.MaxSalePrice.HasValue)
+            {
+                query = query.Where(p => p.SalePrice <= filter.MaxSalePrice.Value);
+            }
+
+            query = filter.SortBy?.ToLower() switch
+            {
+                "name" => query.OrderBy(p => p.Name),
+                "name_desc" => query.OrderByDescending(p => p.Name),
+                "price" => query.OrderBy(p => p.Price),
+                "price_desc" => query.OrderByDescending(p => p.Price),
+                "saleprice" => query.OrderBy(p => p.SalePrice),
+                "saleprice_desc" => query.OrderByDescending(p => p.SalePrice),
+                "stockquantity" => query.OrderBy(p => p.StockQuantity),
+                "stockquantity_desc" => query.OrderByDescending(p => p.StockQuantity),
+                "newest" => query.OrderByDescending(p => p.Id),
+                "bestsellers" => query.OrderByDescending(p => _context.OrderItems
+                                        .Where(oi => oi.ProductId == p.Id && oi.Order.Status != "Cancelled")
+                                        .Sum(oi => oi.Quantity)),
+                _ => query.OrderBy(p => p.Name)
+            };
+
+            return await query.ToListAsync();
         }
     }
 }

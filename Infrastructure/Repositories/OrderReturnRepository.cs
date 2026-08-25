@@ -153,5 +153,66 @@ namespace Eshop.Infrastructure.Repositories
                 TotalPages = (int)Math.Ceiling((double)totalCount / filter.PageSize)
             };
         }
+
+        public async Task<List<OrderReturn>> GetReturnsForExportAsync(OrderReturnFilterDto filter)
+        {
+            var query = _context.OrderReturns
+                .Include(r => r.Order)
+                    .ThenInclude(o => o.Customer)
+                .Include(r => r.ReturnItems)
+                    .ThenInclude(ri => ri.Product)
+                .AsQueryable();
+
+            if (!string.IsNullOrWhiteSpace(filter.SearchTerm))
+            {
+                var search = filter.SearchTerm.ToLower().Replace("#", "");
+                bool isNumeric = int.TryParse(search, out int searchId);
+
+                query = query.Where(r =>
+                    (isNumeric && r.Id == searchId) ||
+                    (isNumeric && r.OrderId == searchId) ||
+                    (r.Order != null && r.Order.Customer != null && (r.Order.Customer.FirstName + " " + r.Order.Customer.LastName).ToLower().Contains(search))
+                );
+            }
+
+            if (filter.MinDate.HasValue)
+                query = query.Where(r => r.CreatedAt >= filter.MinDate.Value.Date);
+
+            if (filter.MaxDate.HasValue)
+            {
+                var nextDay = filter.MaxDate.Value.Date.AddDays(1);
+                query = query.Where(r => r.CreatedAt < nextDay);
+            }
+
+            if (filter.Statuses != null && filter.Statuses.Any())
+            {
+                var statusesLower = filter.Statuses.Select(s => s.ToLower()).ToList();
+                query = query.Where(r => r.Status != null && statusesLower.Contains(r.Status.ToLower()));
+            }
+
+            if (filter.ReturnTypes != null && filter.ReturnTypes.Any())
+            {
+                bool wantsTotal = filter.ReturnTypes.Any(t => t.Equals("Total", StringComparison.OrdinalIgnoreCase));
+                bool wantsPartial = filter.ReturnTypes.Any(t => t.Equals("Partial", StringComparison.OrdinalIgnoreCase));
+
+                if (wantsTotal && !wantsPartial)
+                    query = query.Where(r => r.ReturnType != null && r.ReturnType.ToLower() == "total");
+                else if (wantsPartial && !wantsTotal)
+                    query = query.Where(r => r.ReturnType == null || r.ReturnType.ToLower() != "total");
+            }
+
+            query = filter.SortBy?.ToLower() switch
+            {
+                "id" => query.OrderBy(r => r.Id),
+                "id_desc" => query.OrderByDescending(r => r.Id),
+                "date" => query.OrderBy(r => r.CreatedAt),
+                "date_desc" => query.OrderByDescending(r => r.CreatedAt),
+                "amount" => query.OrderBy(r => r.RefundAmount),
+                "amount_desc" => query.OrderByDescending(r => r.RefundAmount),
+                _ => query.OrderByDescending(r => r.CreatedAt)
+            };
+
+            return await query.ToListAsync();
+        }
     }
 }

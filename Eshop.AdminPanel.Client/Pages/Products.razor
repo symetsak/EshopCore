@@ -35,6 +35,11 @@
                     <MudButton Variant="Variant.Outlined" Color="Color.Default" StartIcon="@Icons.Material.Filled.FilterAltOff" OnClick="ClearFilters" Class="ml-4">
                         Καθαρισμός
                     </MudButton>
+
+                    <MudMenu Label="Εξαγωγή" Variant="Variant.Filled" Color="Color.Success" StartIcon="@Icons.Material.Filled.Download" Class="ml-4" Disabled="@_isExporting">
+                        <MudMenuItem OnClick="ExportToExcel" Icon="@Icons.Material.Filled.TableChart">ως Excel (.xlsx)</MudMenuItem>
+                        <MudMenuItem OnClick="ExportToPdf" Icon="@Icons.Material.Filled.PictureAsPdf">ως PDF (.pdf)</MudMenuItem>
+                    </MudMenu>
                 </ToolBarContent>
                 <HeaderContent>
                     <MudTh>Εικόνα</MudTh>
@@ -287,6 +292,8 @@
     private bool _loadingCategories = false;
     private List<CouponDto> _coupons = new();
     private bool _loadingCoupons = false;
+    private bool _isExporting = false;
+    private string? _currentSortBy;
 
     // ΠΡΟΣΘΗΚΗ: Μεταβλητές για τα νέα φίλτρα
     private int? _selectedCategoryId;
@@ -338,11 +345,11 @@
             var pageNumber = state.Page + 1;
             var pageSize = state.PageSize;
 
-            string? sortBy = null;
+            _currentSortBy = null;
             if (!string.IsNullOrEmpty(state.SortLabel))
             {
-                sortBy = state.SortDirection == SortDirection.Descending 
-                    ? $"{state.SortLabel}_desc" 
+                _currentSortBy = state.SortDirection == SortDirection.Descending
+                    ? $"{state.SortLabel}_desc"
                     : state.SortLabel;
             }
 
@@ -355,7 +362,7 @@
                 _maxPrice,
                 _minSalePrice,
                 _maxSalePrice, 
-                sortBy
+                _currentSortBy
             );
 
             if (result != null)
@@ -599,5 +606,53 @@
         _minSalePrice = null;
         _maxSalePrice = null;
         _table.ReloadServerData();
+    }
+
+    private async Task ExportToExcel()
+    {
+        _isExporting = true;
+        StateHasChanged();
+        try
+        {
+            var fileBytes = await ProductService.ExportProductsExcelAsync(
+                _searchString, _selectedCategoryId, _minPrice, _maxPrice, _minSalePrice, _maxSalePrice, _currentSortBy);
+
+            using var streamRef = new DotNetStreamReference(new MemoryStream(fileBytes));
+            await JS.InvokeVoidAsync("downloadFileFromStream", $"Products_Export_{DateTime.Now:yyyyMMdd_HHmm}.xlsx", streamRef);
+            Snackbar.Add("Η εξαγωγή σε Excel ολοκληρώθηκε!", Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Αποτυχία εξαγωγής: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _isExporting = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task ExportToPdf()
+    {
+        _isExporting = true;
+        StateHasChanged();
+        try
+        {
+            var fileBytes = await ProductService.ExportProductsPdfAsync(
+                _searchString, _selectedCategoryId, _minPrice, _maxPrice, _minSalePrice, _maxSalePrice, _currentSortBy);
+
+            using var streamRef = new DotNetStreamReference(new MemoryStream(fileBytes));
+            await JS.InvokeVoidAsync("downloadFileFromStream", $"Products_Export_{DateTime.Now:yyyyMMdd_HHmm}.pdf", streamRef);
+            Snackbar.Add("Η εξαγωγή σε PDF ολοκληρώθηκε!", Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Αποτυχία εξαγωγής: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _isExporting = false;
+            StateHasChanged();
+        }
     }
 }

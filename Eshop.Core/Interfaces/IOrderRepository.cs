@@ -11,5 +11,6 @@ namespace Eshop.Core.Interfaces
         Task SaveChangesAsync();
         Task<Order?> GetByIdWithItemsAsync(int id);
         Task<PagedResultDto<Order>> GetPagedOrdersAsync(OrderFilterDto filter);
+        Task<List<Order>> GetOrdersForExportAsync(OrderFilterDto filter);
     }
 }

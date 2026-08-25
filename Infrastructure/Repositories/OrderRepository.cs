@@ -132,5 +132,59 @@ namespace Eshop.Infrastructure.Repositories
                 TotalPages = (int)Math.Ceiling((double)totalCount / filter.PageSize)
             };
         }
+
+        public async Task<List<Order>> GetOrdersForExportAsync(OrderFilterDto filter)
+        {
+            var query = _context.Orders
+                .Include(o => o.Customer)
+                .Include(o => o.OrderItems).ThenInclude(oi => oi.Product!).ThenInclude(p => p.Category)
+                .AsQueryable();
+
+            // 1. ΦΙΛΤΡΟ: Αναζήτηση
+            if (!string.IsNullOrWhiteSpace(filter.SearchTerm))
+            {
+                var search = filter.SearchTerm.ToLower().Replace("#", "");
+                bool isNumeric = int.TryParse(search, out int searchId);
+
+                query = query.Where(o =>
+                    (isNumeric && o.Id == searchId) ||
+                    (o.Customer != null && (o.Customer.FirstName + " " + o.Customer.LastName).ToLower().Contains(search)) ||
+                    (o.Customer != null && o.Customer.Email.ToLower().Contains(search))
+                );
+            }
+
+            // 2. ΦΙΛΤΡΟ: Ημερομηνίες
+            if (filter.MinDate.HasValue)
+                query = query.Where(o => o.OrderDate >= filter.MinDate.Value.Date);
+
+            if (filter.MaxDate.HasValue)
+            {
+                var nextDay = filter.MaxDate.Value.Date.AddDays(1);
+                query = query.Where(o => o.OrderDate < nextDay);
+            }
+
+            // 3. ΦΙΛΤΡΟ: Καταστάσεις
+            if (filter.Statuses != null && filter.Statuses.Any())
+                query = query.Where(o => filter.Statuses.Contains(o.Status));
+
+            // 4. ΦΙΛΤΡΟ: Τρόποι Πληρωμής
+            if (filter.PaymentMethods != null && filter.PaymentMethods.Any())
+                query = query.Where(o => filter.PaymentMethods.Contains(o.PaymentMethod));
+
+            // 5. ΤΑΞΙΝΟΜΗΣΗ
+            query = filter.SortBy?.ToLower() switch
+            {
+                "id" => query.OrderBy(o => o.Id),
+                "id_desc" => query.OrderByDescending(o => o.Id),
+                "date" => query.OrderBy(o => o.OrderDate),
+                "date_desc" => query.OrderByDescending(o => o.OrderDate),
+                "amount" => query.OrderBy(o => o.TotalAmount),
+                "amount_desc" => query.OrderByDescending(o => o.TotalAmount),
+                _ => query.OrderByDescending(o => o.OrderDate)
+            };
+
+            // ΕΠΙΣΤΡΕΦΕΙ ΟΛΑ ΤΑ MATCHES ΧΩΡΙΣ PAGINATION
+            return await query.ToListAsync();
+        }
     }
 }

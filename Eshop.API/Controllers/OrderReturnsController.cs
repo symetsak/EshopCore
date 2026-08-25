@@ -118,5 +118,25 @@ namespace Eshop.API.Controllers
                 return BadRequest(new { message = ex.Message });
             }
         }
+
+        [HttpGet("api/admin/returns/export/excel")]
+        [Authorize(Roles = "Administrator, Employee")]
+        public async Task<IActionResult> ExportExcel([FromQuery] OrderReturnFilterDto filter)
+        {
+            var returns = await _returnService.GetReturnsForExportAsync(filter);
+            var exportService = HttpContext.RequestServices.GetRequiredService<IExportService>();
+            var fileBytes = exportService.GenerateReturnsExcel(returns);
+            return File(fileBytes, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", $"Returns_Export_{DateTime.Now:yyyyMMdd_HHmm}.xlsx");
+        }
+
+        [HttpGet("api/admin/returns/export/pdf")]
+        [Authorize(Roles = "Administrator, Employee")]
+        public async Task<IActionResult> ExportPdf([FromQuery] OrderReturnFilterDto filter)
+        {
+            var returns = await _returnService.GetReturnsForExportAsync(filter);
+            var exportService = HttpContext.RequestServices.GetRequiredService<IExportService>();
+            var fileBytes = exportService.GenerateReturnsPdf(returns);
+            return File(fileBytes, "application/pdf", $"Returns_Export_{DateTime.Now:yyyyMMdd_HHmm}.pdf");
+        }
     }
 }

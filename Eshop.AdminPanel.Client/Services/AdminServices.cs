@@ -54,7 +54,7 @@ namespace Eshop.AdminPanel.Client.Services
         private readonly HttpClient _http;
         public OrderService(HttpClient http) => _http = http;
 
-        // ΠΡΟΣΘΗΚΗ: Η νέα μέθοδος που δέχεται φίλτρα, σελιδοποίηση και ταξινόμηση
+        // Η νέα μέθοδος που δέχεται φίλτρα, σελιδοποίηση και ταξινόμηση
         public async Task<PagedResultModel<OrderResponseDto>?> GetPagedOrdersAsync(int pageNumber, int pageSize, string? searchTerm, DateTime? minDate, DateTime? maxDate, List<string>? statuses, List<string>? paymentMethods, string? sortBy)
         {
             var queryParams = new List<string>
@@ -88,13 +88,59 @@ namespace Eshop.AdminPanel.Client.Services
                 queryParams.Add($"SortBy={Uri.EscapeDataString(sortBy)}");
 
             var queryString = string.Join("&", queryParams);
-            var url = $"api/orders/admin/all?{queryString}"; // Το ανανεωμένο endpoint μας!
+            var url = $"api/orders/admin/all?{queryString}"; 
 
             return await _http.GetFromJsonAsync<PagedResultModel<OrderResponseDto>>(url) ?? new PagedResultModel<OrderResponseDto>();
         }
 
         public async Task<HttpResponseMessage> UpdateOrderStatusAsync(int orderId, string status) =>
             await _http.PutAsJsonAsync($"api/orders/admin/{orderId}/status", new { Status = status });
+
+        // Κλήση για Excel Export
+        public async Task<byte[]> ExportOrdersExcelAsync(string? searchTerm, DateTime? minDate, DateTime? maxDate, List<string>? statuses, List<string>? paymentMethods, string? sortBy)
+        {
+            var queryString = BuildExportQueryString(searchTerm, minDate, maxDate, statuses, paymentMethods, sortBy);
+            return await _http.GetByteArrayAsync($"api/orders/admin/export/excel?{queryString}");
+        }
+
+        // Κλήση για PDF Export
+        public async Task<byte[]> ExportOrdersPdfAsync(string? searchTerm, DateTime? minDate, DateTime? maxDate, List<string>? statuses, List<string>? paymentMethods, string? sortBy)
+        {
+            var queryString = BuildExportQueryString(searchTerm, minDate, maxDate, statuses, paymentMethods, sortBy);
+            return await _http.GetByteArrayAsync($"api/orders/admin/export/pdf?{queryString}");
+        }
+
+        // Βοηθητική μέθοδος για να χτίζει το URL των φίλτρων (για να μην τα γράφουμε 3 φορές!)
+        private string BuildExportQueryString(string? searchTerm, DateTime? minDate, DateTime? maxDate, List<string>? statuses, List<string>? paymentMethods, string? sortBy)
+        {
+            var queryParams = new List<string>();
+
+            if (!string.IsNullOrWhiteSpace(searchTerm))
+                queryParams.Add($"SearchTerm={Uri.EscapeDataString(searchTerm)}");
+
+            if (minDate.HasValue)
+                queryParams.Add($"MinDate={minDate.Value:yyyy-MM-dd}");
+
+            if (maxDate.HasValue)
+                queryParams.Add($"MaxDate={maxDate.Value:yyyy-MM-dd}");
+
+            if (statuses != null && statuses.Any())
+            {
+                foreach (var status in statuses)
+                    queryParams.Add($"Statuses={Uri.EscapeDataString(status)}");
+            }
+
+            if (paymentMethods != null && paymentMethods.Any())
+            {
+                foreach (var method in paymentMethods)
+                    queryParams.Add($"PaymentMethods={Uri.EscapeDataString(method)}");
+            }
+
+            if (!string.IsNullOrWhiteSpace(sortBy))
+                queryParams.Add($"SortBy={Uri.EscapeDataString(sortBy)}");
+
+            return string.Join("&", queryParams);
+        }
     }
 
     public class ProductService : IProductService
@@ -149,6 +195,32 @@ namespace Eshop.AdminPanel.Client.Services
 
         public async Task<HttpResponseMessage> UploadImageAsync(int id, MultipartFormDataContent content) => await _http.PostAsync($"api/Products/{id}/image", content);
         public async Task<HttpResponseMessage> DeleteImageAsync(int id) => await _http.DeleteAsync($"api/Products/{id}/image");
+
+        public async Task<byte[]> ExportProductsExcelAsync(string? searchString, int? categoryId, decimal? minPrice, decimal? maxPrice, decimal? minSalePrice, decimal? maxSalePrice, string? sortBy)
+        {
+            var queryString = BuildExportQueryString(searchString, categoryId, minPrice, maxPrice, minSalePrice, maxSalePrice, sortBy);
+            return await _http.GetByteArrayAsync($"api/Products/export/excel?{queryString}");
+        }
+
+        public async Task<byte[]> ExportProductsPdfAsync(string? searchString, int? categoryId, decimal? minPrice, decimal? maxPrice, decimal? minSalePrice, decimal? maxSalePrice, string? sortBy)
+        {
+            var queryString = BuildExportQueryString(searchString, categoryId, minPrice, maxPrice, minSalePrice, maxSalePrice, sortBy);
+            return await _http.GetByteArrayAsync($"api/Products/export/pdf?{queryString}");
+        }
+
+        private string BuildExportQueryString(string? searchString, int? categoryId, decimal? minPrice, decimal? maxPrice, decimal? minSalePrice, decimal? maxSalePrice, string? sortBy)
+        {
+            var queryParams = new List<string>();
+            if (!string.IsNullOrWhiteSpace(searchString)) queryParams.Add($"SearchTerm={Uri.EscapeDataString(searchString)}");
+            if (categoryId.HasValue) queryParams.Add($"CategoryIds={categoryId.Value}");
+            if (minPrice.HasValue) queryParams.Add($"MinPrice={minPrice.Value}");
+            if (maxPrice.HasValue) queryParams.Add($"MaxPrice={maxPrice.Value}");
+            if (minSalePrice.HasValue) queryParams.Add($"MinSalePrice={minSalePrice.Value}");
+            if (maxSalePrice.HasValue) queryParams.Add($"MaxSalePrice={maxSalePrice.Value}");
+            if (!string.IsNullOrWhiteSpace(sortBy)) queryParams.Add($"SortBy={Uri.EscapeDataString(sortBy)}");
+
+            return string.Join("&", queryParams);
+        }
     }
 
     public class CategoryService : ICategoryService
@@ -219,6 +291,36 @@ namespace Eshop.AdminPanel.Client.Services
 
         public async Task<HttpResponseMessage> UpdateReturnStatusAsync(int returnId, string status) =>
             await _http.PutAsJsonAsync($"api/admin/returns/{returnId}/status", new OrderReturnStatusUpdateDto { Status = status });
+
+        public async Task<byte[]> ExportReturnsExcelAsync(string? searchTerm, DateTime? minDate, DateTime? maxDate, List<string>? statuses, List<string>? returnTypes, string? sortBy)
+        {
+            var queryString = BuildExportQueryString(searchTerm, minDate, maxDate, statuses, returnTypes, sortBy);
+            return await _http.GetByteArrayAsync($"api/admin/returns/export/excel?{queryString}");
+        }
+
+        public async Task<byte[]> ExportReturnsPdfAsync(string? searchTerm, DateTime? minDate, DateTime? maxDate, List<string>? statuses, List<string>? returnTypes, string? sortBy)
+        {
+            var queryString = BuildExportQueryString(searchTerm, minDate, maxDate, statuses, returnTypes, sortBy);
+            return await _http.GetByteArrayAsync($"api/admin/returns/export/pdf?{queryString}");
+        }
+
+        private string BuildExportQueryString(string? searchTerm, DateTime? minDate, DateTime? maxDate, List<string>? statuses, List<string>? returnTypes, string? sortBy)
+        {
+            var queryParams = new List<string>();
+            if (!string.IsNullOrWhiteSpace(searchTerm)) queryParams.Add($"SearchTerm={Uri.EscapeDataString(searchTerm)}");
+            if (minDate.HasValue) queryParams.Add($"MinDate={minDate.Value:yyyy-MM-dd}");
+            if (maxDate.HasValue) queryParams.Add($"MaxDate={maxDate.Value:yyyy-MM-dd}");
+
+            if (statuses != null && statuses.Any())
+                foreach (var status in statuses) queryParams.Add($"Statuses={Uri.EscapeDataString(status)}");
+
+            if (returnTypes != null && returnTypes.Any())
+                foreach (var type in returnTypes) queryParams.Add($"ReturnTypes={Uri.EscapeDataString(type)}");
+
+            if (!string.IsNullOrWhiteSpace(sortBy)) queryParams.Add($"SortBy={Uri.EscapeDataString(sortBy)}");
+
+            return string.Join("&", queryParams);
+        }
     }
 
     public class UserService : IUserService

@@ -10,5 +10,6 @@ namespace Eshop.Core.Interfaces
         Task<AdminDashboardDto> GetAdminDashboardStatsAsync();
         Task<OrderResponseDto?> GetOrderDetailsForAdminAsync(int orderId);
         Task<PagedResultDto<OrderResponseDto>> GetFilteredOrdersAsync(OrderFilterDto filter);
+        Task<IEnumerable<OrderResponseDto>> GetOrdersForExportAsync(OrderFilterDto filter);
     }
 }
