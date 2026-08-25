@@ -16,13 +16,16 @@ namespace Eshop.AdminPanel.Client.Services
 
     public interface IOrderService
     {
-        Task<List<OrderResponseDto>> GetOrdersAsync();
+        // Το νέο Paged endpoint
+        Task<PagedResultModel<OrderResponseDto>?> GetPagedOrdersAsync(int pageNumber, int pageSize, string? searchTerm, DateTime? minDate, DateTime? maxDate, List<string>? statuses, List<string>? paymentMethods, string? sortBy);
         Task<HttpResponseMessage> UpdateOrderStatusAsync(int orderId, string status);
+        Task<byte[]> ExportOrdersExcelAsync(string? searchTerm, DateTime? minDate, DateTime? maxDate, List<string>? statuses, List<string>? paymentMethods, string? sortBy);
+        Task<byte[]> ExportOrdersPdfAsync(string? searchTerm, DateTime? minDate, DateTime? maxDate, List<string>? statuses, List<string>? paymentMethods, string? sortBy);
     }
 
     public interface IProductService
     {
-        Task<PagedResultModel<ProductResponseModel>?> GetProductsAsync(int pageNumber, int pageSize, string search);
+        Task<PagedResultModel<ProductResponseModel>?> GetProductsAsync(int pageNumber, int pageSize, string? searchString, int? categoryId, decimal? minPrice, decimal? maxPrice, decimal? minSalePrice, decimal? maxSalePrice, string? sortBy);
         Task<HttpResponseMessage> CreateProductAsync(ProductCreateUpdateModel model);
         Task<HttpResponseMessage> UpdateProductAsync(int id, ProductCreateUpdateModel model);
         Task<HttpResponseMessage> DeleteProductAsync(int id);
@@ -30,6 +33,8 @@ namespace Eshop.AdminPanel.Client.Services
         Task<HttpResponseMessage> DeleteDiscountAsync(int id);
         Task<HttpResponseMessage> UploadImageAsync(int id, MultipartFormDataContent content);
         Task<HttpResponseMessage> DeleteImageAsync(int id);
+        Task<byte[]> ExportProductsExcelAsync(string? searchString, int? categoryId, decimal? minPrice, decimal? maxPrice, decimal? minSalePrice, decimal? maxSalePrice, string? sortBy);
+        Task<byte[]> ExportProductsPdfAsync(string? searchString, int? categoryId, decimal? minPrice, decimal? maxPrice, decimal? minSalePrice, decimal? maxSalePrice, string? sortBy);
     }
 
     public interface ICategoryService
@@ -50,8 +55,10 @@ namespace Eshop.AdminPanel.Client.Services
 
     public interface IReturnService
     {
-        Task<List<OrderReturnResponseDto>?> GetReturnsAsync();
+        Task<PagedResultModel<OrderReturnResponseDto>?> GetPagedReturnsAsync(int pageNumber, int pageSize, string? searchTerm, DateTime? minDate, DateTime? maxDate, List<string>? statuses, List<string>? returnTypes, string? sortBy);
         Task<HttpResponseMessage> UpdateReturnStatusAsync(int returnId, string status);
+        Task<byte[]> ExportReturnsExcelAsync(string? searchTerm, DateTime? minDate, DateTime? maxDate, List<string>? statuses, List<string>? returnTypes, string? sortBy);
+        Task<byte[]> ExportReturnsPdfAsync(string? searchTerm, DateTime? minDate, DateTime? maxDate, List<string>? statuses, List<string>? returnTypes, string? sortBy);
     }
 
     public interface IUserService

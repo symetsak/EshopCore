@@ -15,5 +15,6 @@ namespace Eshop.Core.Interfaces
         Task<ProductResponseDto> DeleteProductImageAsync(int productId);
         Task ApplyDiscountAsync(int productId, UpdateProductDiscountDto dto);
         Task RemoveDiscountAsync(int id);
+        Task<IEnumerable<ProductResponseDto>> GetProductsForExportAsync(ProductFilterDto filter);
     }
 }

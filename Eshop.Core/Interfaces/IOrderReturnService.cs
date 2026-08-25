@@ -1,4 +1,5 @@
 ﻿using Eshop.Application.DTOs;
+using Eshop.Core.DTOs; 
 
 namespace Eshop.Application.Services
 {
@@ -9,8 +10,9 @@ namespace Eshop.Application.Services
         Task<IEnumerable<OrderReturnResponseDto>> GetCustomerReturnsAsync(int customerId);
 
         // Για τον Admin
-        Task<IEnumerable<OrderReturnResponseDto>> GetAllReturnsAsync();
+        Task<PagedResultDto<OrderReturnResponseDto>> GetFilteredReturnsAsync(OrderReturnFilterDto filter); 
         Task<OrderReturnResponseDto?> GetReturnByIdAsync(int id);
         Task<OrderReturnResponseDto?> UpdateReturnStatusAsync(int returnId, OrderReturnStatusUpdateDto dto);
+        Task<IEnumerable<OrderReturnResponseDto>> GetReturnsForExportAsync(OrderReturnFilterDto filter);
     }
 }

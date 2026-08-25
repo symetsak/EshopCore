@@ -14,6 +14,8 @@ using System.Text.Json;
 AppContext.SetSwitch("Npgsql.EnableLegacyTimestampBehavior", true);
 var builder = WebApplication.CreateBuilder(args);
 
+QuestPDF.Settings.License = QuestPDF.Infrastructure.LicenseType.Community;
+
 // 1. Ρύθμιση της PostgreSQL για το MasterDbContext (ΜΕ RESILIENCY)
 var masterConnectionString = builder.Configuration.GetConnectionString("MasterConnection");
 builder.Services.AddDbContext<MasterDbContext>(options =>

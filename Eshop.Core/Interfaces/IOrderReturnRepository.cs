@@ -1,4 +1,5 @@
-﻿using Eshop.Core.Entities;
+﻿using Eshop.Core.DTOs;
+using Eshop.Core.Entities;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 
@@ -12,5 +13,7 @@ namespace Eshop.Core.Interfaces
         Task AddAsync(OrderReturn orderReturn);
         void Update(OrderReturn orderReturn);
         Task SaveChangesAsync();
+        Task<PagedResultDto<OrderReturn>> GetPagedReturnsAsync(OrderReturnFilterDto filter);
+        Task<List<OrderReturn>> GetReturnsForExportAsync(OrderReturnFilterDto filter);
     }
 }

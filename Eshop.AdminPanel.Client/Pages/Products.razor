@@ -28,16 +28,73 @@
 
                     <MudSpacer />
 
-                    <MudTextField T="string" ValueChanged="@(s => OnSearch(s))" Placeholder="Αναζήτηση με όνομα..."
+                    <MudTextField T="string" ValueChanged="@(s => OnSearch(s))" Value="@_searchString" Placeholder="Αναζήτηση με όνομα..."
+                                  Immediate="true" DebounceInterval="500"
                                   Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search" IconSize="Size.Medium" Class="mt-0" Clearable="true" />
+
+                    <MudButton Variant="Variant.Outlined" Color="Color.Default" StartIcon="@Icons.Material.Filled.FilterAltOff" OnClick="ClearFilters" Class="ml-4">
+                        Καθαρισμός
+                    </MudButton>
+
+                    <MudMenu Label="Εξαγωγή" Variant="Variant.Filled" Color="Color.Success" StartIcon="@Icons.Material.Filled.Download" Class="ml-4" Disabled="@_isExporting">
+                        <MudMenuItem OnClick="ExportToExcel" Icon="@Icons.Material.Filled.TableChart">ως Excel (.xlsx)</MudMenuItem>
+                        <MudMenuItem OnClick="ExportToPdf" Icon="@Icons.Material.Filled.PictureAsPdf">ως PDF (.pdf)</MudMenuItem>
+                    </MudMenu>
                 </ToolBarContent>
                 <HeaderContent>
                     <MudTh>Εικόνα</MudTh>
-                    <MudTh>Όνομα</MudTh>
-                    <MudTh>Κατηγορία</MudTh>
-                    <MudTh>Τιμή</MudTh>
-                    <MudTh>Τιμή Προσφοράς</MudTh>
-                    <MudTh>Απόθεμα</MudTh>
+                    
+                    <MudTh>
+                        <MudTableSortLabel SortLabel="Name" T="ProductResponseModel">Όνομα</MudTableSortLabel>
+                    </MudTh>
+                    
+                    <MudTh>
+                        <div class="d-flex align-center">
+                            Κατηγορία
+                            <MudMenu Icon="@Icons.Material.Filled.MoreVert" Size="Size.Small" Dense="true" AnchorOrigin="Origin.BottomRight">
+                                <div class="pa-4" style="width: 250px;">
+                                    <MudText Typo="Typo.subtitle2" Class="mb-2">Φίλτρο Κατηγορίας</MudText>
+                                    <MudSelect T="int?" ValueChanged="OnCategoryFilterChanged" Clearable="true" Dense="true" Placeholder="Όλες">
+                                        @foreach (var cat in _categories)
+                                        {
+                                            <MudSelectItem T="int?" Value="@cat.Id">@cat.Name</MudSelectItem>
+                                        }
+                                    </MudSelect>
+                                </div>
+                            </MudMenu>
+                        </div>
+                    </MudTh>
+                    
+                    <MudTh>
+                        <div class="d-flex align-center">
+                            <MudTableSortLabel SortLabel="Price" T="ProductResponseModel">Τιμή</MudTableSortLabel>
+                            <MudMenu Icon="@Icons.Material.Filled.MoreVert" Size="Size.Small" Dense="true" AnchorOrigin="Origin.BottomRight">
+                                <div class="pa-4" style="width: 250px;">
+                                    <MudText Typo="Typo.subtitle2" Class="mb-2">Εύρος Τιμής</MudText>
+                                    <MudNumericField T="decimal?" Label="Από (€)" ValueChanged="OnMinPriceChanged" Clearable="true" Dense="true" Class="mb-2" />
+                                    <MudNumericField T="decimal?" Label="Έως (€)" ValueChanged="OnMaxPriceChanged" Clearable="true" Dense="true" />
+                                </div>
+                            </MudMenu>
+                        </div>
+                    </MudTh>
+                    
+                    <MudTh>
+                        <div class="d-flex align-center">
+                            <MudTableSortLabel SortLabel="SalePrice" T="ProductResponseModel">Τιμή Προσφοράς</MudTableSortLabel>
+                            <MudMenu Icon="@Icons.Material.Filled.MoreVert" Size="Size.Small" Dense="true" AnchorOrigin="Origin.BottomRight">
+                                <div class="pa-4" style="width: 250px;">
+                                    <MudText Typo="Typo.subtitle2" Class="mb-2">Εύρος Προσφοράς</MudText>
+                                    <MudNumericField T="decimal?" Label="Από (€)" ValueChanged="OnMinSalePriceChanged" Clearable="true" Dense="true" Class="mb-2" />
+                                    <MudNumericField T="decimal?" Label="Έως (€)" ValueChanged="OnMaxSalePriceChanged" Clearable="true" Dense="true" />
+                                </div>
+                            </MudMenu>
+                        </div>
+                    </MudTh>
+                    
+                    <MudTh>
+                        <MudTableSortLabel SortLabel="StockQuantity" T="ProductResponseModel">Απόθεμα</MudTableSortLabel>
+                    </MudTh>
+                    
                     <MudTh Style="text-align: right;">Ενέργειες</MudTh>
                 </HeaderContent>
                 <RowTemplate>
@@ -235,6 +292,51 @@
     private bool _loadingCategories = false;
     private List<CouponDto> _coupons = new();
     private bool _loadingCoupons = false;
+    private bool _isExporting = false;
+    private string? _currentSortBy;
+
+    // ΠΡΟΣΘΗΚΗ: Μεταβλητές για τα νέα φίλτρα
+    private int? _selectedCategoryId;
+    private decimal? _minPrice;
+    private decimal? _maxPrice;
+    private decimal? _minSalePrice;
+    private decimal? _maxSalePrice;
+
+    // ΠΡΟΣΘΗΚΗ: Φορτώνουμε τις κατηγορίες στην αρχή για τα φίλτρα
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadCategoriesAsync();
+    }
+
+    private void OnCategoryFilterChanged(int? categoryId)
+    {
+        _selectedCategoryId = categoryId;
+        _table.ReloadServerData();
+    }
+
+    private void OnMinPriceChanged(decimal? minPrice)
+    {
+        _minPrice = minPrice;
+        _table.ReloadServerData();
+    }
+
+    private void OnMaxPriceChanged(decimal? maxPrice)
+    {
+        _maxPrice = maxPrice;
+        _table.ReloadServerData();
+    }
+
+    private void OnMinSalePriceChanged(decimal? minSalePrice)
+    {
+        _minSalePrice = minSalePrice;
+        _table.ReloadServerData();
+    }
+
+    private void OnMaxSalePriceChanged(decimal? maxSalePrice)
+    {
+        _maxSalePrice = maxSalePrice;
+        _table.ReloadServerData();
+    }
 
     private async Task<TableData<ProductResponseModel>> ServerReload(TableState state, System.Threading.CancellationToken cancellationToken)
     {
@@ -243,8 +345,25 @@
             var pageNumber = state.Page + 1;
             var pageSize = state.PageSize;
 
-            // Κλήση μέσω του ProductService - Καθαρίσαμε URL, tokens και headers!
-            var result = await ProductService.GetProductsAsync(pageNumber, pageSize, _searchString);
+            _currentSortBy = null;
+            if (!string.IsNullOrEmpty(state.SortLabel))
+            {
+                _currentSortBy = state.SortDirection == SortDirection.Descending
+                    ? $"{state.SortLabel}_desc"
+                    : state.SortLabel;
+            }
+
+            var result = await ProductService.GetProductsAsync(
+                pageNumber, 
+                pageSize, 
+                _searchString,
+                _selectedCategoryId,
+                _minPrice,
+                _maxPrice,
+                _minSalePrice,
+                _maxSalePrice, 
+                _currentSortBy
+            );
 
             if (result != null)
             {
@@ -475,6 +594,65 @@
             {
                 Snackbar.Add($"Σφάλμα: {ex.Message}", Severity.Error);
             }
+        }
+    }
+
+    private void ClearFilters()
+    {
+        _searchString = "";
+        _selectedCategoryId = null;
+        _minPrice = null;
+        _maxPrice = null;
+        _minSalePrice = null;
+        _maxSalePrice = null;
+        _table.ReloadServerData();
+    }
+
+    private async Task ExportToExcel()
+    {
+        _isExporting = true;
+        StateHasChanged();
+        try
+        {
+            var fileBytes = await ProductService.ExportProductsExcelAsync(
+                _searchString, _selectedCategoryId, _minPrice, _maxPrice, _minSalePrice, _maxSalePrice, _currentSortBy);
+
+            using var streamRef = new DotNetStreamReference(new MemoryStream(fileBytes));
+            await JS.InvokeVoidAsync("downloadFileFromStream", $"Products_Export_{DateTime.Now:yyyyMMdd_HHmm}.xlsx", streamRef);
+            Snackbar.Add("Η εξαγωγή σε Excel ολοκληρώθηκε!", Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Αποτυχία εξαγωγής: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _isExporting = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task ExportToPdf()
+    {
+        _isExporting = true;
+        StateHasChanged();
+        try
+        {
+            var fileBytes = await ProductService.ExportProductsPdfAsync(
+                _searchString, _selectedCategoryId, _minPrice, _maxPrice, _minSalePrice, _maxSalePrice, _currentSortBy);
+
+            using var streamRef = new DotNetStreamReference(new MemoryStream(fileBytes));
+            await JS.InvokeVoidAsync("downloadFileFromStream", $"Products_Export_{DateTime.Now:yyyyMMdd_HHmm}.pdf", streamRef);
+            Snackbar.Add("Η εξαγωγή σε PDF ολοκληρώθηκε!", Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Αποτυχία εξαγωγής: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _isExporting = false;
+            StateHasChanged();
         }
     }
 }

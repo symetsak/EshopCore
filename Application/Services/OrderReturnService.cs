@@ -1,5 +1,6 @@
 ﻿using AutoMapper;
 using Eshop.Application.DTOs;
+using Eshop.Core.DTOs; 
 using Eshop.Core.Entities;
 using Eshop.Core.Interfaces;
 
@@ -158,8 +159,21 @@ namespace Eshop.Application.Services
         public async Task<IEnumerable<OrderReturnResponseDto>> GetCustomerReturnsAsync(int customerId) =>
             _mapper.Map<IEnumerable<OrderReturnResponseDto>>(await _returnRepo.GetByCustomerIdAsync(customerId));
 
-        public async Task<IEnumerable<OrderReturnResponseDto>> GetAllReturnsAsync() =>
-            _mapper.Map<IEnumerable<OrderReturnResponseDto>>(await _returnRepo.GetAllReturnsAsync());
+        // REFACTOR: Η νέα μέθοδος που αντικατέστησε την GetAllReturnsAsync()
+        public async Task<PagedResultDto<OrderReturnResponseDto>> GetFilteredReturnsAsync(OrderReturnFilterDto filter)
+        {
+            var pagedReturns = await _returnRepo.GetPagedReturnsAsync(filter);
+            var returnDtos = _mapper.Map<IEnumerable<OrderReturnResponseDto>>(pagedReturns.Items);
+
+            return new PagedResultDto<OrderReturnResponseDto>
+            {
+                Items = returnDtos,
+                PageNumber = pagedReturns.PageNumber,
+                PageSize = pagedReturns.PageSize,
+                TotalCount = pagedReturns.TotalCount,
+                TotalPages = pagedReturns.TotalPages
+            };
+        }
 
         public async Task<OrderReturnResponseDto?> GetReturnByIdAsync(int id) =>
             _mapper.Map<OrderReturnResponseDto>(await _returnRepo.GetByIdWithItemsAsync(id));
@@ -247,6 +261,12 @@ namespace Eshop.Application.Services
             await _notificationService.SendToCustomerAsync(_tenantProvider.TenantId!, orderReturn.CustomerId, notificationTitle, notificationMessage, new { returnId = orderReturn.Id, status = newStatus });
 
             return _mapper.Map<OrderReturnResponseDto>(orderReturn);
+        }
+
+        public async Task<IEnumerable<OrderReturnResponseDto>> GetReturnsForExportAsync(OrderReturnFilterDto filter)
+        {
+            var returns = await _returnRepo.GetReturnsForExportAsync(filter);
+            return _mapper.Map<IEnumerable<OrderReturnResponseDto>>(returns);
         }
     }
 }

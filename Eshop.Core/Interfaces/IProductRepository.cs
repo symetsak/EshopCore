@@ -12,5 +12,6 @@ namespace Eshop.Core.Interfaces
         void Delete(Product product);
         Task SaveChangesAsync();
         Task<PagedResultDto<Product>> GetPagedProductsAsync(ProductFilterDto filter);
+        Task<List<Product>> GetProductsForExportAsync(ProductFilterDto filter);
     }
 }

@@ -49,6 +49,7 @@ namespace Eshop.API.Extensions
             services.AddScoped<ISystemAuthService, SystemAuthService>();
             services.AddScoped<ICurrentUserService, CurrentUserService>();
             services.AddScoped<AuditLogInterceptor>();
+            services.AddScoped<IExportService, ExportService>();
 
             // Stripe & Payments
             services.AddScoped<Eshop.Application.Payments.StripePaymentStrategy>();

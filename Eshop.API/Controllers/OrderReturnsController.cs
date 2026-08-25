@@ -5,11 +5,10 @@ using Eshop.Core.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
-
 namespace Eshop.API.Controllers
 {
     [ApiController]
-    [Authorize] // Όλος ο controller χρειάζεται login!
+    [Authorize]
     public class OrderReturnsController : ControllerBase
     {
         private readonly IOrderReturnService _returnService;
@@ -89,9 +88,9 @@ namespace Eshop.API.Controllers
         // ENDPOINTS ΓΙΑ ΤΟΝ ΔΙΑΧΕΙΡΙΣΤΗ (Admin)
         [HttpGet("api/admin/returns")]
         [Authorize(Roles = "Administrator, Employee")]
-        public async Task<IActionResult> GetAllReturns()
+        public async Task<IActionResult> GetAllReturns([FromQuery] OrderReturnFilterDto filter) // REFACTOR: Προστέθηκαν τα φίλτρα
         {
-            var result = await _returnService.GetAllReturnsAsync();
+            var result = await _returnService.GetFilteredReturnsAsync(filter);
             return Ok(result);
         }
 
@@ -118,6 +117,26 @@ namespace Eshop.API.Controllers
             {
                 return BadRequest(new { message = ex.Message });
             }
+        }
+
+        [HttpGet("api/admin/returns/export/excel")]
+        [Authorize(Roles = "Administrator, Employee")]
+        public async Task<IActionResult> ExportExcel([FromQuery] OrderReturnFilterDto filter)
+        {
+            var returns = await _returnService.GetReturnsForExportAsync(filter);
+            var exportService = HttpContext.RequestServices.GetRequiredService<IExportService>();
+            var fileBytes = exportService.GenerateReturnsExcel(returns);
+            return File(fileBytes, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", $"Returns_Export_{DateTime.Now:yyyyMMdd_HHmm}.xlsx");
+        }
+
+        [HttpGet("api/admin/returns/export/pdf")]
+        [Authorize(Roles = "Administrator, Employee")]
+        public async Task<IActionResult> ExportPdf([FromQuery] OrderReturnFilterDto filter)
+        {
+            var returns = await _returnService.GetReturnsForExportAsync(filter);
+            var exportService = HttpContext.RequestServices.GetRequiredService<IExportService>();
+            var fileBytes = exportService.GenerateReturnsPdf(returns);
+            return File(fileBytes, "application/pdf", $"Returns_Export_{DateTime.Now:yyyyMMdd_HHmm}.pdf");
         }
     }
 }
